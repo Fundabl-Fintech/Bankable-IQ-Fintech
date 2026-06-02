@@ -1,0 +1,615 @@
+# compliance-svc/.semgrepconfig.yml
+# Owner: platform
+# Spec Sections: §10.4
+# Blueprint Sections: §17
+# Maturity Target: lender_ready
+# Acceptance: OWASP ASVS Level 2 baseline enforced across all services, ASVS Level 3 for compliance-svc and credit-svc
+
+rules:
+  # ============================================================================
+  # ASVS Level 3 Rules for compliance-svc
+  # ============================================================================
+
+  # V2: Authentication Verification Requirements
+  - id: asvs-v3-auth-hardcoded-credentials
+    pattern-either:
+      - pattern: |
+          $SECRET = "..."
+      - pattern: |
+          $PASSWORD = "..."
+    paths:
+      include:
+        - "*.py"
+        - "*.js"
+        - "*.ts"
+        - "*.java"
+        - "*.go"
+        - "*.rb"
+    message: "ASVS V3.1.1: Hardcoded credentials detected. All secrets must be stored in vault or environment variables."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v3-auth-mfa-bypass
+    pattern: |
+      mfa_enabled = False
+    message: "ASVS V3.2.1: MFA bypass detected. MFA must be enforced for all privileged access."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+
+  - id: asvs-v3-auth-session-fixation
+    pattern: |
+      session.regenerate()
+    message: "ASVS V3.3.1: Session fixation vulnerability. Session IDs must be regenerated after authentication."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+
+  # V3: Session Management Verification Requirements
+  - id: asvs-v3-session-timeout
+    pattern: |
+      session_timeout = $TIMEOUT
+    metavariable-pattern:
+      metavariable: $TIMEOUT
+      pattern-either:
+        - pattern: "None"
+        - pattern: "0"
+    message: "ASVS V3.1.1: Session timeout must be set to a maximum of 15 minutes for high-value transactions."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+
+  - id: asvs-v3-session-cookie-secure
+    pattern: |
+      cookie.secure = False
+    message: "ASVS V3.2.1: Session cookies must have Secure flag set."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+
+  # V4: Access Control Verification Requirements
+  - id: asvs-v3-acl-bypass
+    pattern-either:
+      - pattern: |
+          if user.role == "admin":
+            ...
+      - pattern: |
+          if user.is_admin:
+            ...
+    message: "ASVS V4.1.1: Access control checks must be enforced at every request. Use centralized authorization middleware."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v3-idor
+    pattern: |
+      db.query("SELECT * FROM $TABLE WHERE id = " + $USER_INPUT)
+    message: "ASVS V4.2.1: Insecure Direct Object Reference (IDOR). Use parameterized queries and verify user ownership."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  # V5: Validation, Sanitization and Encoding Verification Requirements
+  - id: asvs-v3-sql-injection
+    pattern-either:
+      - pattern: |
+          execute("SELECT ..." + $INPUT)
+      - pattern: |
+          query("SELECT ..." + $INPUT)
+    message: "ASVS V5.1.1: SQL Injection vulnerability. Use parameterized queries or ORM."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v3-xss
+    pattern-either:
+      - pattern: |
+          innerHTML = $INPUT
+      - pattern: |
+          dangerouslySetInnerHTML={{__html: $INPUT}}
+      - pattern: |
+          v-html="$INPUT"
+    message: "ASVS V5.2.1: Cross-Site Scripting (XSS) vulnerability. Use safe rendering methods."
+    severity: ERROR
+    languages:
+      - javascript
+      - typescript
+      - html
+
+  - id: asvs-v3-command-injection
+    pattern-either:
+      - pattern: |
+          os.system($INPUT)
+      - pattern: |
+          subprocess.call($INPUT, shell=True)
+      - pattern: |
+          exec($INPUT)
+    message: "ASVS V5.3.1: Command Injection vulnerability. Use subprocess with list arguments."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v3-xxe
+    pattern: |
+      xml.etree.ElementTree.parse($INPUT)
+    message: "ASVS V5.5.1: XML External Entity (XXE) vulnerability. Disable external entity processing."
+    severity: ERROR
+    languages:
+      - python
+      - java
+      - go
+
+  # V6: Stored Cryptography Verification Requirements
+  - id: asvs-v3-weak-crypto
+    pattern-either:
+      - pattern: |
+          hashlib.md5($INPUT)
+      - pattern: |
+          hashlib.sha1($INPUT)
+      - pattern: |
+          Crypto.Cipher.DES.new($KEY)
+    message: "ASVS V6.2.1: Weak cryptographic algorithm. Use SHA-256 or stronger for hashing, AES-256 for encryption."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v3-hardcoded-keys
+    pattern: |
+      encryption_key = "..."
+    message: "ASVS V6.3.1: Hardcoded encryption keys. Keys must be stored in a secure key management system."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  # V7: Error Handling and Logging Verification Requirements
+  - id: asvs-v3-stack-trace-exposure
+    pattern: |
+      traceback.print_exc()
+    message: "ASVS V7.1.1: Stack trace exposure. Log errors securely without exposing internals."
+    severity: WARNING
+    languages:
+      - python
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v3-sensitive-data-logging
+    pattern-either:
+      - pattern: |
+          logger.info("$DATA: " + $SECRET)
+      - pattern: |
+          console.log("$DATA: " + $SECRET)
+    message: "ASVS V7.2.1: Sensitive data in logs. Mask or omit PII, credentials, and tokens."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  # V8: Data Protection Verification Requirements
+  - id: asvs-v3-pii-exposure
+    pattern: |
+      response.json({"ssn": $SSN, "credit_card": $CC})
+    message: "ASVS V8.3.1: PII exposure in API responses. Mask sensitive data fields."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v3-insecure-transport
+    pattern: |
+      http://$DOMAIN
+    message: "ASVS V8.1.1: Insecure transport. Use HTTPS for all communications."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+      - yaml
+
+  # V9: Communication Verification Requirements
+  - id: asvs-v3-tls-version
+    pattern: |
+      ssl_version = ssl.PROTOCOL_TLSv1
+    message: "ASVS V9.1.1: Deprecated TLS version. Use TLS 1.2 or higher."
+    severity: ERROR
+    languages:
+      - python
+      - java
+      - go
+
+  # V10: Malicious Code Verification Requirements
+  - id: asvs-v3-eval-injection
+    pattern: |
+      eval($INPUT)
+    message: "ASVS V10.3.1: Eval injection vulnerability. Avoid dynamic code execution."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v3-deserialization
+    pattern-either:
+      - pattern: |
+          pickle.loads($INPUT)
+      - pattern: |
+          JSON.parse($INPUT)
+    message: "ASVS V10.4.1: Insecure deserialization. Validate and sanitize serialized data."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  # V11: Business Logic Verification Requirements
+  - id: asvs-v3-rate-limiting
+    pattern: |
+      @app.route("/api/$ENDPOINT")
+    message: "ASVS V11.1.1: Rate limiting required for all API endpoints. Implement throttling."
+    severity: WARNING
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v3-transaction-integrity
+    pattern: |
+      db.commit()
+    message: "ASVS V11.2.1: Ensure transaction integrity. Use atomic operations and rollback on failure."
+    severity: WARNING
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  # V12: Files and Resources Verification Requirements
+  - id: asvs-v3-path-traversal
+    pattern: |
+      open("/uploads/" + $INPUT)
+    message: "ASVS V12.1.1: Path traversal vulnerability. Validate and sanitize file paths."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v3-file-upload
+    pattern: |
+      file.save("/uploads/" + $FILENAME)
+    message: "ASVS V12.2.1: File upload vulnerability. Validate file type, size, and content."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  # V13: API and Web Service Verification Requirements
+  - id: asvs-v3-api-authentication
+    pattern: |
+      @app.route("/api/$ENDPOINT")
+    message: "ASVS V13.1.1: API endpoints must require authentication. Add @login_required or equivalent."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v3-graphql-injection
+    pattern: |
+      graphql.execute($QUERY)
+    message: "ASVS V13.3.1: GraphQL injection. Use parameterized queries and depth limiting."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  # V14: Configuration Verification Requirements
+  - id: asvs-v3-debug-mode
+    pattern: |
+      debug = True
+    message: "ASVS V14.1.1: Debug mode enabled. Disable in production."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+      - yaml
+
+  - id: asvs-v3-cors-wildcard
+    pattern: |
+      Access-Control-Allow-Origin: *
+    message: "ASVS V14.2.1: CORS wildcard origin. Restrict to specific trusted origins."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+      - yaml
+
+  # ============================================================================
+  # ASVS Level 2 Baseline Rules (enforced across all services)
+  # ============================================================================
+
+  - id: asvs-v2-baseline-sql-injection
+    pattern: |
+      execute("SELECT ..." + $INPUT)
+    message: "ASVS V2.1.1: SQL Injection. Use parameterized queries."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v2-baseline-xss
+    pattern: |
+      innerHTML = $INPUT
+    message: "ASVS V2.2.1: XSS vulnerability. Use safe rendering."
+    severity: ERROR
+    languages:
+      - javascript
+      - typescript
+      - html
+
+  - id: asvs-v2-baseline-hardcoded-secrets
+    pattern: |
+      $SECRET = "..."
+    message: "ASVS V2.3.1: Hardcoded secrets. Use environment variables."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v2-baseline-weak-crypto
+    pattern: |
+      hashlib.md5($INPUT)
+    message: "ASVS V2.4.1: Weak crypto. Use SHA-256."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v2-baseline-command-injection
+    pattern: |
+      os.system($INPUT)
+    message: "ASVS V2.5.1: Command injection. Use subprocess with list."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v2-baseline-path-traversal
+    pattern: |
+      open("/uploads/" + $INPUT)
+    message: "ASVS V2.6.1: Path traversal. Validate file paths."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v2-baseline-insecure-transport
+    pattern: |
+      http://$DOMAIN
+    message: "ASVS V2.7.1: Insecure transport. Use HTTPS."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+      - yaml
+
+  - id: asvs-v2-baseline-debug-mode
+    pattern: |
+      debug = True
+    message: "ASVS V2.8.1: Debug mode enabled."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+      - yaml
+
+  - id: asvs-v2-baseline-cors-wildcard
+    pattern: |
+      Access-Control-Allow-Origin: *
+    message: "ASVS V2.9.1: CORS wildcard origin."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+      - yaml
+
+  - id: asvs-v2-baseline-stack-trace
+    pattern: |
+      traceback.print_exc()
+    message: "ASVS V2.10.1: Stack trace exposure."
+    severity: WARNING
+    languages:
+      - python
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v2-baseline-sensitive-logging
+    pattern: |
+      logger.info("$DATA: " + $SECRET)
+    message: "ASVS V2.11.1: Sensitive data in logs."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v2-baseline-eval
+    pattern: |
+      eval($INPUT)
+    message: "ASVS V2.12.1: Eval injection."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v2-baseline-deserialization
+    pattern: |
+      pickle.loads($INPUT)
+    message: "ASVS V2.13.1: Insecure deserialization."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v2-baseline-file-upload
+    pattern: |
+      file.save("/uploads/" + $FILENAME)
+    message: "ASVS V2.14.1: File upload vulnerability."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+
+  - id: asvs-v2-baseline-api-auth
+    pattern: |
+      @app.route("/api/$ENDPOINT")
+    message: "ASVS V2.15.1: API authentication required."
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - types
