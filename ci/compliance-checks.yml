@@ -1,0 +1,441 @@
+# ci/compliance-checks.yml
+# Owner: service:compliance
+# Purpose: Validate that bug bounty findings are tracked alongside ZAP DAST, pen test, and SAST results
+# Dependencies: §10.4, §11.2, §16.3
+# Maturity target: compounding_capital
+
+name: Compliance Checks
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly Monday 6 AM UTC
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to validate'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  COMPLIANCE_REPORT_DIR: compliance-reports
+  BUG_BOUNTY_PLATFORM: HackerOne  # or Bugcrowd
+  SECURITY_POLICY_URL: https://security.getbankable.io
+  PYTHON_VERSION: '3.11'
+  LOG_LEVEL: INFO
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate-bug-bounty-tracking:
+    name: Validate Bug Bounty Tracking
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    outputs:
+      bug_bounty_registered: ${{ steps.check-bug-bounty-registration.outputs.registered }}
+      disclosure_policy_published: ${{ steps.check-disclosure-policy.outputs.published }}
+      scope_defined: ${{ steps.check-bug-bounty-scope.outputs.scope_defined }}
+      triage_workflow_documented: ${{ steps.check-triage-workflow.outputs.documented }}
+      triage_team_assigned: ${{ steps.check-triage-team.outputs.team_assigned }}
+      findings_integrated: ${{ steps.check-findings-integration.outputs.integrated }}
+      safe_harbor_reviewed: ${{ steps.check-safe-harbor.outputs.reviewed }}
+      overall_status: ${{ steps.determine-overall-status.outputs.status }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: '**/requirements*.txt'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml requests
+
+      - name: Create compliance report directory
+        run: |
+          mkdir -p "${{ env.COMPLIANCE_REPORT_DIR }}"
+          echo "Created compliance report directory: ${{ env.COMPLIANCE_REPORT_DIR }}"
+
+      # Check 1: Bug bounty program registered on HackerOne or Bugcrowd
+      - name: Check Bug Bounty Registration
+        id: check-bug-bounty-registration
+        run: |
+          echo "Checking bug bounty platform registration..."
+          
+          # Check for platform configuration files
+          if [ -f "security/bug-bounty/hackerone-config.yml" ] || [ -f "security/bug-bounty/bugcrowd-config.yml" ]; then
+            echo "registered=true" >> $GITHUB_OUTPUT
+            echo "✅ Bug bounty program configuration found"
+          else
+            echo "registered=false" >> $GITHUB_OUTPUT
+            echo "❌ Bug bounty program configuration not found"
+            exit 1
+          fi
+
+      # Check 2: Responsible disclosure policy published
+      - name: Check Disclosure Policy
+        id: check-disclosure-policy
+        run: |
+          echo "Checking responsible disclosure policy..."
+          
+          POLICY_FILE="security/responsible-disclosure-policy.md"
+          if [ -f "$POLICY_FILE" ]; then
+            # Verify policy contains required elements
+            if grep -q "security.getbankable.io" "$POLICY_FILE" && \
+               grep -q "safe harbor" "$POLICY_FILE" && \
+               grep -q "disclosure" "$POLICY_FILE"; then
+              echo "published=true" >> $GITHUB_OUTPUT
+              echo "✅ Responsible disclosure policy found and validated"
+            else
+              echo "published=false" >> $GITHUB_OUTPUT
+              echo "❌ Policy file missing required elements"
+              exit 1
+            fi
+          else
+            echo "published=false" >> $GITHUB_OUTPUT
+            echo "❌ Responsible disclosure policy not found"
+            exit 1
+          fi
+
+      # Check 3: Scope defined with severity tiers and payout ranges
+      - name: Check Bug Bounty Scope
+        id: check-bug-bounty-scope
+        run: |
+          echo "Checking bug bounty scope definition..."
+          
+          SCOPE_FILE="security/bug-bounty/scope.yml"
+          if [ -f "$SCOPE_FILE" ]; then
+            python -c "
+import yaml
+import sys
+
+try:
+    with open('$SCOPE_FILE') as f:
+        scope = yaml.safe_load(f)
+    
+    required_keys = ['in_scope_services', 'out_of_scope_systems', 'severity_tiers', 'payout_ranges']
+    missing_keys = []
+    
+    for key in required_keys:
+        if key not in scope:
+            missing_keys.append(key)
+    
+    if missing_keys:
+        print(f'Missing required keys: {missing_keys}')
+        sys.exit(1)
+    
+    # Validate severity tiers have required fields
+    severity_tiers = scope.get('severity_tiers', {})
+    required_tier_fields = ['name', 'description', 'response_time']
+    
+    for tier_name, tier_config in severity_tiers.items():
+        missing_tier_fields = [field for field in required_tier_fields if field not in tier_config]
+        if missing_tier_fields:
+            print(f'Missing fields in severity tier {tier_name}: {missing_tier_fields}')
+            sys.exit(1)
+    
+    # Validate payout ranges
+    payout_ranges = scope.get('payout_ranges', {})
+    if not isinstance(payout_ranges, dict) or len(payout_ranges) == 0:
+        print('Payout ranges must be a non-empty dictionary')
+        sys.exit(1)
+    
+    print('Scope definition validated successfully')
+    sys.exit(0)
+except yaml.YAMLError as e:
+    print(f'YAML parsing error: {e}')
+    sys.exit(1)
+except Exception as e:
+    print(f'Unexpected error: {e}')
+    sys.exit(1)
+"
+            echo "scope_defined=true" >> $GITHUB_OUTPUT
+            echo "✅ Bug bounty scope properly defined"
+          else
+            echo "scope_defined=false" >> $GITHUB_OUTPUT
+            echo "❌ Bug bounty scope file not found"
+            exit 1
+          fi
+
+      # Check 4: Triage workflow documented
+      - name: Check Triage Workflow
+        id: check-triage-workflow
+        run: |
+          echo "Checking triage workflow documentation..."
+          
+          WORKFLOW_FILE="security/bug-bounty/triage-workflow.md"
+          if [ -f "$WORKFLOW_FILE" ]; then
+            # Verify SLA requirements
+            if grep -q "24h" "$WORKFLOW_FILE" && \
+               grep -q "72h" "$WORKFLOW_FILE" && \
+               grep -q "severity" "$WORKFLOW_FILE"; then
+              echo "documented=true" >> $GITHUB_OUTPUT
+              echo "✅ Triage workflow documented with SLAs"
+            else
+              echo "documented=false" >> $GITHUB_OUTPUT
+              echo "❌ Triage workflow missing SLA requirements"
+              exit 1
+            fi
+          else
+            echo "documented=false" >> $GITHUB_OUTPUT
+            echo "❌ Triage workflow documentation not found"
+            exit 1
+          fi
+
+      # Check 5: Internal triage team assigned
+      - name: Check Triage Team Assignment
+        id: check-triage-team
+        run: |
+          echo "Checking internal triage team assignment..."
+          
+          TEAM_FILE="security/bug-bounty/triage-team.yml"
+          if [ -f "$TEAM_FILE" ]; then
+            python -c "
+import yaml
+import sys
+
+try:
+    with open('$TEAM_FILE') as f:
+        team = yaml.safe_load(f)
+    
+    required_keys = ['team_members', 'primary_contact', 'escalation_path', 'sla_critical', 'sla_high']
+    missing_keys = []
+    
+    for key in required_keys:
+        if key not in team:
+            missing_keys.append(key)
+    
+    if missing_keys:
+        print(f'Missing required keys: {missing_keys}')
+        sys.exit(1)
+    
+    # Validate team members structure
+    team_members = team.get('team_members', [])
+    if not isinstance(team_members, list) or len(team_members) == 0:
+        print('team_members must be a non-empty list')
+        sys.exit(1)
+    
+    # Validate each team member has required fields
+    for member in team_members:
+        if not isinstance(member, dict):
+            print('Each team member must be a dictionary')
+            sys.exit(1)
+        member_required = ['name', 'role', 'email', 'timezone']
+        missing_member_fields = [field for field in member_required if field not in member]
+        if missing_member_fields:
+            print(f'Missing fields in team member: {missing_member_fields}')
+            sys.exit(1)
+    
+    # Validate SLA values are reasonable
+    sla_critical = team.get('sla_critical', {})
+    sla_high = team.get('sla_high', {})
+    
+    for sla_name, sla_config in [('critical', sla_critical), ('high', sla_high)]:
+        if not isinstance(sla_config, dict):
+            print(f'sla_{sla_name} must be a dictionary')
+            sys.exit(1)
+        sla_required = ['response_time', 'resolution_time']
+        missing_sla_fields = [field for field in sla_required if field not in sla_config]
+        if missing_sla_fields:
+            print(f'Missing fields in sla_{sla_name}: {missing_sla_fields}')
+            sys.exit(1)
+    
+    print('Triage team configuration validated successfully')
+    sys.exit(0)
+except yaml.YAMLError as e:
+    print(f'YAML parsing error: {e}')
+    sys.exit(1)
+except Exception as e:
+    print(f'Unexpected error: {e}')
+    sys.exit(1)
+"
+            echo "team_assigned=true" >> $GITHUB_OUTPUT
+            echo "✅ Triage team properly assigned"
+          else
+            echo "team_assigned=false" >> $GITHUB_OUTPUT
+            echo "❌ Triage team configuration not found"
+            exit 1
+          fi
+
+      # Check 6: Findings integrated with existing security practices
+      - name: Check Findings Integration
+        id: check-findings-integration
+        run: |
+          echo "Checking findings integration with existing security practices..."
+          
+          INTEGRATION_FILE="security/bug-bounty/findings-integration.yml"
+          if [ -f "$INTEGRATION_FILE" ]; then
+            python -c "
+import yaml
+import sys
+
+try:
+    with open('$INTEGRATION_FILE') as f:
+        integration = yaml.safe_load(f)
+    
+    required_keys = ['zap_dast_integration', 'pen_test_integration', 'sast_integration', 'tracking_system']
+    missing_keys = []
+    
+    for key in required_keys:
+        if key not in integration:
+            missing_keys.append(key)
+    
+    if missing_keys:
+        print(f'Missing required keys: {missing_keys}')
+        sys.exit(1)
+    
+    # Validate each integration has required fields
+    for integration_key in ['zap_dast_integration', 'pen_test_integration', 'sast_integration']:
+        integration_config = integration.get(integration_key, {})
+        if not isinstance(integration_config, dict):
+            print(f'{integration_key} must be a dictionary')
+            sys.exit(1)
+        
+        integration_required = ['enabled', 'sync_frequency', 'mapping_rules']
+        missing_integration_fields = [field for field in integration_required if field not in integration_config]
+        if missing_integration_fields:
+            print(f'Missing fields in {integration_key}: {missing_integration_fields}')
+            sys.exit(1)
+    
+    # Validate tracking system
+    tracking_system = integration.get('tracking_system', {})
+    tracking_required = ['platform', 'api_endpoint', 'webhook_url']
+    missing_tracking_fields = [field for field in tracking_required if field not in tracking_system]
+    if missing_tracking_fields:
+        print(f'Missing fields in tracking_system: {missing_tracking_fields}')
+        sys.exit(1)
+    
+    print('Findings integration configuration validated successfully')
+    sys.exit(0)
+except yaml.YAMLError as e:
+    print(f'YAML parsing error: {e}')
+    sys.exit(1)
+except Exception as e:
+    print(f'Unexpected error: {e}')
+    sys.exit(1)
+"
+            echo "integrated=true" >> $GITHUB_OUTPUT
+            echo "✅ Findings integration properly configured"
+          else
+            echo "integrated=false" >> $GITHUB_OUTPUT
+            echo "❌ Findings integration configuration not found"
+            exit 1
+          fi
+
+      # Check 7: Safe harbor language reviewed by counsel
+      - name: Check Safe Harbor Review
+        id: check-safe-harbor
+        run: |
+          echo "Checking safe harbor language review..."
+          
+          SAFE_HARBOR_FILE="security/bug-bounty/safe-harbor-review.md"
+          if [ -f "$SAFE_HARBOR_FILE" ]; then
+            # Verify review documentation contains required elements
+            if grep -q "counsel" "$SAFE_HARBOR_FILE" && \
+               grep -q "reviewed" "$SAFE_HARBOR_FILE" && \
+               grep -q "approved" "$SAFE_HARBOR_FILE"; then
+              echo "reviewed=true" >> $GITHUB_OUTPUT
+              echo "✅ Safe harbor language reviewed by counsel"
+            else
+              echo "reviewed=false" >> $GITHUB_OUTPUT
+              echo "❌ Safe harbor review documentation incomplete"
+              exit 1
+            fi
+          else
+            echo "reviewed=false" >> $GITHUB_OUTPUT
+            echo "❌ Safe harbor review documentation not found"
+            exit 1
+          fi
+
+      # Determine overall status
+      - name: Determine Overall Status
+        id: determine-overall-status
+        run: |
+          echo "Determining overall compliance status..."
+          
+          ALL_CHECKS_PASSED=true
+          
+          # Check all previous step outputs
+          for check in "bug_bounty_registered" "disclosure_policy_published" "scope_defined" "triage_workflow_documented" "triage_team_assigned" "findings_integrated" "safe_harbor_reviewed"; do
+            status=$(grep "^${check}=" $GITHUB_OUTPUT | cut -d= -f2)
+            if [ "$status" != "true" ]; then
+              ALL_CHECKS_PASSED=false
+              echo "❌ Check failed: $check"
+            fi
+          done
+          
+          if [ "$ALL_CHECKS_PASSED" = true ]; then
+            echo "status=passed" >> $GITHUB_OUTPUT
+            echo "✅ All compliance checks passed"
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "❌ Some compliance checks failed"
+            exit 1
+          fi
+
+      # Generate compliance report
+      - name: Generate Compliance Report
+        if: always()
+        run: |
+          echo "Generating compliance report..."
+          
+          REPORT_FILE="${{ env.COMPLIANCE_REPORT_DIR }}/compliance-report-${{ github.run_id }}.json"
+          
+          cat > "$REPORT_FILE" << EOF
+          {
+            "workflow": "${{ github.workflow }}",
+            "run_id": "${{ github.run_id }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "environment": "${{ github.event.inputs.environment || 'staging' }}",
+            "checks": {
+              "bug_bounty_registered": "${{ steps.check-bug-bounty-registration.outputs.registered }}",
+              "disclosure_policy_published": "${{ steps.check-disclosure-policy.outputs.published }}",
+              "scope_defined": "${{ steps.check-bug-bounty-scope.outputs.scope_defined }}",
+              "triage_workflow_documented": "${{ steps.check-triage-workflow.outputs.documented }}",
+              "triage_team_assigned": "${{ steps.check-triage-team.outputs.team_assigned }}",
+              "findings_integrated": "${{ steps.check-findings-integration.outputs.integrated }}",
+              "safe_harbor_reviewed": "${{ steps.check-safe-harbor.outputs.reviewed }}"
+            },
+            "overall_status": "${{ steps.determine-overall-status.outputs.status }}"
+          }
+          EOF
+          
+          echo "Compliance report generated: $REPORT_FILE"
+
+      # Upload compliance report as artifact
+      - name: Upload Compliance Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-report-${{ github.run_id }}
+          path: ${{ env.COMPLIANCE_REPORT_DIR }}/
+          retention-days: 90
+          if-no-files-found: error
+
+      # Notify on failure
+      - name: Notify on Failure
+        if: failure() && github.event_name == 'push'
+        run: |
+          echo "Compliance checks failed. Notifying team..."
+          # Add notification logic here (e.g., Slack, email, PagerDuty)
+          # This is a placeholder for production notification integration
+          echo "Would notify: #security-team, @compliance-owners"
