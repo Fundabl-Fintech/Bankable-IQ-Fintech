@@ -1,0 +1,296 @@
+# security/findings-sla.yaml
+# Owner: platform
+# Spec sections: §10.4
+# Blueprint sections: §17
+# Maturity target: lender_ready
+---
+metadata:
+  owner: platform
+  spec_sections:
+    - §10.4
+  blueprint_sections:
+    - §17
+  maturity_target: lender_ready
+  description: >
+    SLA definitions for security findings across all services.
+    Critical findings must be remediated within 24 hours,
+    high within 7 days, medium within 30 days.
+    All findings tracked to closure.
+
+# Acceptance criteria
+acceptance:
+  asvs:
+    baseline_level: 2
+    enforcement: all_services
+    level_3_services:
+      - compliance-svc
+      - credit-svc
+
+# SLA definitions for security findings
+slas:
+  critical:
+    remediation_time: 24h
+    description: >
+      Critical severity findings must be remediated within 24 hours.
+      Includes remote code execution, authentication bypass,
+      data exposure, and similar high-impact vulnerabilities.
+    auto_remediation:
+      enabled: true
+      action: block_deployment
+      notification_channels:
+        - slack_security_alerts
+        - pagerduty_critical
+    escalation:
+      after: 12h
+      to: security_lead
+      repeat_interval: 6h
+
+  high:
+    remediation_time: 7d
+    description: >
+      High severity findings must be remediated within 7 days.
+      Includes SQL injection, XSS, privilege escalation,
+      and similar significant vulnerabilities.
+    auto_remediation:
+      enabled: true
+      action: require_security_review
+      notification_channels:
+        - slack_security_alerts
+    escalation:
+      after: 5d
+      to: engineering_manager
+      repeat_interval: 24h
+
+  medium:
+    remediation_time: 30d
+    description: >
+      Medium severity findings must be remediated within 30 days.
+      Includes information disclosure, CSRF, and similar
+      moderate-impact vulnerabilities.
+    auto_remediation:
+      enabled: true
+      action: require_ticket
+      notification_channels:
+        - slack_security_alerts
+    escalation:
+      after: 25d
+      to: team_lead
+      repeat_interval: 48h
+
+  low:
+    remediation_time: 90d
+    description: >
+      Low severity findings should be reviewed and addressed
+      within 90 days. Includes best practice violations,
+      minor information leaks, and similar low-impact issues.
+    auto_remediation:
+      enabled: false
+      action: log_only
+      notification_channels:
+        - slack_security_alerts
+
+# Security scanning tools configuration
+scanning:
+  sast:
+    tools:
+      - name: semgrep
+        config: .semgrep.yml
+        run_on: every_pr
+        rules:
+          - all_services: default
+          - compliance-svc: asvs_level_3
+          - credit-svc: asvs_level_3
+      - name: codeql
+        config: .github/codeql-config.yml
+        run_on: every_pr
+        languages:
+          - javascript
+          - typescript
+          - python
+          - java
+          - go
+
+  dast:
+    tools:
+      - name: owasp_zap
+        config: .zap/config.yml
+        schedule: weekly
+        target: staging
+        scan_type: full
+        authentication:
+          enabled: true
+          type: oauth2
+        alerts:
+          critical: block
+          high: block
+          medium: warn
+          low: info
+
+  sca:
+    tools:
+      - name: snyk
+        config: .snyk
+        run_on: every_pr
+        auto_pr:
+          critical: true
+          high: true
+          medium: false
+          low: false
+      - name: dependabot
+        enabled: true
+        config: .github/dependabot.yml
+        auto_pr:
+          critical: true
+          high: true
+          medium: false
+          low: false
+
+  secret_scanning:
+    tools:
+      - name: gitguardian
+        config: .gitguardian.yml
+        run_on: every_push
+        push_protection: true
+        alerts:
+          critical: block_push
+          high: block_push
+          medium: warn
+          low: warn
+      - name: github_secret_scanning
+        enabled: true
+        push_protection: true
+        alerts:
+          critical: block_push
+          high: block_push
+          medium: warn
+          low: warn
+
+# Penetration testing schedule
+penetration_testing:
+  third_party:
+    frequency: annual
+    scope: full_platform
+    provider: external
+    requirements:
+      - owasp_top_10
+      - asvs_level_2
+      - custom_threat_model
+
+  bug_bounty:
+    platform: hackerone  # or bugcrowd
+    launch_phase: 3
+    scope:
+      - production
+      - staging
+    rewards:
+      critical: 5000
+      high: 2500
+      medium: 1000
+      low: 250
+
+# Security review gates
+security_gates:
+  architecture_changes:
+    enabled: true
+    trigger: material_architecture_changes
+    review_type: security_review
+    required_approvals:
+      - security_lead
+      - platform_architect
+    blocking: true
+    notification_channels:
+      - slack_security_alerts
+      - email_security_team
+
+  deployment:
+    pre_deployment:
+      - sast_pass
+      - sca_pass
+      - secret_scanning_pass
+      - no_critical_or_high_open_findings
+    post_deployment:
+      - dast_scheduled
+      - monitoring_alerts_configured
+
+# Tracking and reporting
+tracking:
+  system: jira  # or github_issues
+  project: SEC
+  fields:
+    - severity
+    - service
+    - discovered_date
+    - sla_deadline
+    - remediation_date
+    - status
+    - assignee
+  automation:
+    create_ticket: true
+    update_on_scan: true
+    close_on_remediation: true
+    sla_breach_escalation: true
+
+  reporting:
+    dashboards:
+      - name: security_findings_overview
+        refresh: daily
+        metrics:
+          - open_findings_by_severity
+          - sla_compliance_rate
+          - mean_time_to_remediate
+          - findings_by_service
+      - name: sla_breaches
+        refresh: hourly
+        metrics:
+          - breached_slas
+          - escalation_status
+          - aging_findings
+
+# Compliance mapping
+compliance:
+  standards:
+    - name: OWASP ASVS
+      level: 2
+      baseline: true
+      services:
+        - all
+    - name: OWASP ASVS
+      level: 3
+      services:
+        - compliance-svc
+        - credit-svc
+    - name: SOC2
+      controls:
+        - CC6.1
+        - CC7.1
+        - CC7.2
+    - name: PCI_DSS
+      controls:
+        - 6.5
+        - 6.6
+        - 11.3
+
+# Escalation matrix
+escalation:
+  levels:
+    - name: level_1
+      role: security_analyst
+      response_time: 1h
+      coverage: 24x7
+    - name: level_2
+      role: security_lead
+      response_time: 2h
+      coverage: business_hours
+    - name: level_3
+      role: ciso
+      response_time: 4h
+      coverage: on_call
+
+  contacts:
+    security_team:
+      slack: "#security-alerts"
+      email: security@company.com
+      pagerduty: security-team
+    engineering:
+      slack: "#engineering-security"
+      email: eng-security@company.com
