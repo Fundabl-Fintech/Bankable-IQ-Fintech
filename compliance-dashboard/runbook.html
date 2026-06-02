@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Runbook · Annual Third-Party Penetration Test & Remediation SLA Tracking · Compliance Security Dashboard</title>
+  <!-- Design system: Compliance Security Dashboard v1.0.0 -->
+  <!-- Google Fonts: Inter, Roboto, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    /* ---------- RESET & BASE ---------- */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background-color: #f5f5f5;
+      font-family: 'Roboto', sans-serif;
+      color: #1a237e;
+      line-height: 1.5;
+      padding: 2rem 1.5rem;
+    }
+    /* ---------- TYPOGRAPHY ---------- */
+    h1, h2, h3, h4, .heading {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1a237e;
+      margin-bottom: 0.25rem;
+    }
+    h2 {
+      font-size: 1.5rem;
+      color: #0d47a1;
+      border-bottom: 2px solid #e0e0e0;
+      padding-bottom: 0.5rem;
+      margin: 2rem 0 1rem 0;
+    }
+    h3 {
+      font-size: 1.125rem;
+      color: #1a237e;
+      margin: 1.5rem 0 0.75rem 0;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      background: #e8eaf6;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+    }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      background: #e8eaf6;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    /* ---------- LAYOUT ---------- */
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 8px 30px rgba(26, 35, 126, 0.08);
+      padding: 2rem 2.5rem;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.25rem;
+    }
+    @media (max-width: 900px) {
+      .grid-2, .grid-3, .grid-4 {
+        grid-template-columns: 1fr;
+      }
+      body { padding: 1rem; }
+      .container { padding: 1.5rem; }
+    }
+    /* ---------- CARDS ---------- */
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      border: 1px solid #e8eaf6;
+      transition: box-shadow 0.15s ease;
+    }
+    .card:hover {
+      box-shadow: 0 4px 16px rgba(26, 35, 126, 0.08);
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      color: #1a237e;
+    }
+    .card-header .badge {
+      margin-left: auto;
+    }
+    /* ---------- BADGES ---------- */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.7rem;
+      border-radius: 30px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      font-family: 'Inter', sans-serif;
+    }
+    .badge-success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .badge-warning {
+      background: #fff8e1;
+      color: #f57f17;
+    }
+    .badge-danger {
+      background: #ffebee;
+      color: #c62828;
+    }
+    .badge-neutral {
+      background: #eceff1;
+      color: #37474f;
+    }
+    .badge-primary {
+      background: #e8eaf6;
+      color: #1a237e;
+    }
+    /* ---------- METRIC GAUGE (mini) ---------- */
+    .metric-gauge {
+      display: flex;
+      flex-direction: column;
+    }
+    .gauge-bar {
+      height: 8px;
+      background: #e0e0e0;
+      border-radius: 20px;
+      margin: 0.5rem 0 0.25rem 0;
+      overflow: hidden;
+    }
+    .gauge-fill {
+      height: 8px;
+      border-radius: 20px;
+      background: #2e7d32;
+      width: 0%;
+    }
+    .gauge-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #37474f;
+    }
+    /* ---------- TABLE ---------- */
+    .vulnerability-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .vulnerability-table th {
+      text-align: left;
+      padding: 0.6rem 0.5rem 0.4rem 0.5rem;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      color: #37474f;
+      border-bottom: 2px solid #e8eaf6;
+    }
+    .vulnerability-table td {
+      padding: 0.6rem 0.5rem;
+      border-bottom: 1px solid #f0f0f0;
+      vertical-align: middle;
+    }
+    .vulnerability-table tr:last-child td {
+      border-bottom: none;
+    }
+    .severity-tag {
+      display: inline-block;
+      padding: 0.15rem 0.6rem;
+      border-radius: 30px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    .sev-critical { background: #ffebee; color: #c62828; }
+    .sev-high { background: #fff8e1; color: #f57f17; }
+    .sev-medium { background: #e8f5e9; color: #2e7d32; }
+    .sev-low { background: #eceff1; color: #37474f; }
+    /* ---------- SCAN TIMELINE ---------- */
+    .timeline-item {
+      display: flex;
+      gap: 1rem;
+      padding: 0.5rem 0;
+      border-left: 2px solid #e8eaf6;
+      padding-left: 1rem;
+      position: relative;
+    }
+    .timeline-item::before {
+      content: '';
+      width: 10px;
+      height: 10px;
+      background: #1a237e;
+      border-radius: 50%;
+      position: absolute;
+      left: -6px;
+      top: 0.7rem;
+    }
+    .timeline-item .tl-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: #0d47a1;
+      min-width: 70px;
+    }
+    /* ---------- COMPLIANCE BADGE ---------- */
+    .compliance-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: #e8eaf6;
+      border-radius: 40px;
+      padding: 0.3rem 1rem 0.3rem 0.8rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    .compliance-badge .icon {
+      font-size: 1rem;
+    }
+    /* ---------- ALERT BANNER ---------- */
+    .alert-banner {
+      background: #fff8e1;
+      border-left: 5px solid #f57f17;
+      padding: 0.75rem 1.25rem;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
+    }
+    .alert-banner.danger {
+      background: #ffebee;
+      border-left-color: #c62828;
+    }
+    .alert-banner.success {
+      background: #e8f5e9;
+      border-left-color: #2e7d32;
+    }
+    /* ---------- FRONTMATTER ---------- */
+    .frontmatter {
+      background: #f5f5f5;
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      font-size: 0.8rem;
+      color: #37474f;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem 2.5rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid #e0e0e0;
+    }
+    .frontmatter-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .frontmatter-item .label {
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      color: #1a237e;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .frontmatter-item .value {
+      font-size: 0.85rem;
+    }
+    /* ---------- MISC ---------- */
+    .section-desc {
+      color: #37474f;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
+    .acceptance-list {
+      list-style: none;
+      padding: 0;
+    }
+    .acceptance-list li {
+      padding: 0.3rem 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+    .acceptance-list li::before {
+      content: "✓";
+      color: #2e7d32;
+      font-weight: 700;
+      font-size: 1rem;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #e8eaf6;
+      margin: 1.5rem 0;
+    }
+    .flex-between {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .mt-1 { margin-top: 1rem; }
+    .mb-1 { margin-bottom: 1rem; }
+    .text-small { font-size: 0.8rem; color: #37474f; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ========== HEADER ========== -->
+  <div class="flex-between">
+    <div>
+      <h1>🔐 Annual Third-Party Penetration Test</h1>
+      <p style="color:#37474f; font-size:0.95rem;">Remediation SLA Tracking · Compliance Security Dashboard v1.0.0</p>
+    </div>
+    <div>
+      <span class="compliance-badge"><span class="icon">🛡️</span> §10.4 · §XII</span>
+      <span class="compliance-badge" style="margin-left:0.5rem; background:#e8f5e9; color:#2e7d32;"><span class="icon">⏳</span> lender_ready</span>
+    </div>
+  </div>
+
+  <!-- ========== FRONTMATTER ========== -->
+  <div class="frontmatter">
+    <div class="frontmatter-item"><span class="label">Owner</span><span class="value">service:compliance</span></div>
+    <div class="frontmatter-item"><span class="label">Depends on</span><span class="value">203, 205</span></div>
+    <div class="frontmatter-item"><span class="label">Blocks</span><span class="value">—</span></div>
+    <div class="frontmatter-item"><span class="label">Spec sections</span><span class="value">§10.4</span></div>
+    <div class="frontmatter-item"><span class="label">Blueprint</span><span class="value">§XII</span></div>
+    <div class="frontmatter-item"><span class="label">Maturity</span><span class="value">lender_ready</span></div>
+  </div>
+
+  <!-- ========== ACCEPTANCE CRITERIA ========== -->
+  <h2>✓ Acceptance Criteria</h2>
+  <div class="card" style="margin-bottom:1.5rem;">
+    <ul class="acceptance-list">
+      <li>OWASP ASVS Level 2 compliance checklist mapped to engineering practices and verified</li>
+      <li>ASVS Level 3 applied to <span class="mono">compliance-svc</span> and <span class="mono">credit-svc</span> specifically</li>
+      <li>ZAP DAST scheduled scan configured against staging environment; alerts on new findings</li>
+      <li>Snyk integrated in CI for SCA (software composition analysis) on all dependency changes</li>
+      <li>Dependabot enabled for all services with auto-merge for patch-level CVE fixes</li>
+      <li>GitGuardian configured; native GitHub secret scanning push protection enabled</li>
+      <li>Annual third-party penetration test process documented in runbook</li>
+      <li>Phase 3 bug bounty program spec documented (HackerOne or Bugcrowd) with scope definition</li>
+      <li>SAST (Semgrep + CodeQL) verified on every PR alongside DAST scheduled cadence</li>
+    </ul>
+  </div>
+
+  <!-- ========== OVERVIEW CARDS ========== -->
+  <div class="grid-4">
+    <div class="card">
+      <div class="card-header">📋 ASVS Coverage <span class="badge badge-primary">L2+</span></div>
+      <div style="font-size:1.8rem; font-weight:700; color:#1a237e;">94<span style="font-size:1rem; font-weight:400; color:#37474f;">%</span></div>
+      <div class="gauge-bar"><div class="gauge-fill" style="width:94%;"></div></div>
+      <div class="gauge-label"><span>Level 2 baseline</span><span>credit-svc L3</span></div>
+    </div>
+    <div class="card">
+      <div class="card-header">🔍 DAST (ZAP) <span class="badge badge-success">scheduled</span></div>
+      <div style="font-size:1.8rem; font-weight:700; color:#2e7d32;">0<span style="font-size:1rem; font-weight:400; color:#37474f;"> critical</span></div>
+      <div class="text-small" style="margin-top:0.3rem;">Last scan: 2026-06-02 03:00 UTC</div>
+      <div class="text-small">2 medium · 5 low</div>
+    </div>
+    <div class="card">
+      <div class="card-header">🧪 SCA (Snyk) <span class="badge badge-success">CI</span></div>
+      <div style="font-size:1.8rem; font-weight:700; color:#2e7d32;">0<span style="font-size:1rem; font-weight:400; color:#37474f;"> vulns</span></div>
+      <div class="text-small" style="margin-top:0.3rem;">Dependencies: 1,284</div>
+      <div class="text-small">Dependabot auto-merge: patch</div>
+    </div>
+    <div class="card">
+      <div class="card-header">🛡️ Secret scanning <span class="badge badge-success">active</span></div>
+      <div style="font-size:1.8rem; font-weight:700; color:#2e7d32;">0<span style="font-size:1rem; font-weight:400; color:#37474f;"> leaks</span></div>
+      <div class="text-small" style="margin-top:0.3rem;">GitGuardian + GitHub push protection</div>
+    </div>
+  </div>
