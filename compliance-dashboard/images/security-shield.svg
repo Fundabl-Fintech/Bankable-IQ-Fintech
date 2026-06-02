@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" width="100" height="120" role="img" aria-label="Security Shield">
+  <defs>
+    <!-- Drop shadow for depth -->
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+
+    <!-- Gradient for green variant -->
+    <linearGradient id="gradGreen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#43a047"/>
+      <stop offset="100%" stop-color="#2e7d32"/>
+    </linearGradient>
+
+    <!-- Gradient for yellow variant -->
+    <linearGradient id="gradYellow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffb300"/>
+      <stop offset="100%" stop-color="#f57f17"/>
+    </linearGradient>
+
+    <!-- Gradient for red variant -->
+    <linearGradient id="gradRed" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e53935"/>
+      <stop offset="100%" stop-color="#c62828"/>
+    </linearGradient>
+
+    <!-- Gradient for neutral/grey variant -->
+    <linearGradient id="gradNeutral" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#78909c"/>
+      <stop offset="100%" stop-color="#37474f"/>
+    </linearGradient>
+
+    <!-- Checkmark stroke definition -->
+    <style>
+      .shield-bg { fill: url(#gradNeutral); }
+      .shield-bg-green { fill: url(#gradGreen); }
+      .shield-bg-yellow { fill: url(#gradYellow); }
+      .shield-bg-red { fill: url(#gradRed); }
+      .shield-border { fill: none; stroke: #fff; stroke-width: 1.5; stroke-opacity: 0.3; }
+      .checkmark { fill: none; stroke: #fff; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+      .lock-body { fill: #fff; }
+      .lock-shackle { fill: none; stroke: #fff; stroke-width: 3.5; stroke-linecap: round; }
+    </style>
+  </defs>
+
+  <!-- Shield shape -->
+  <g filter="url(#shadow)">
+    <!-- Main shield body -->
+    <path class="shield-bg" d="M50 5 L90 20 L90 55 Q90 85 50 115 Q10 85 10 55 L10 20 Z"/>
+
+    <!-- Shield highlight/edge -->
+    <path class="shield-border" d="M50 5 L90 20 L90 55 Q90 85 50 115 Q10 85 10 55 L10 20 Z"/>
+
+    <!-- Inner shield highlight for depth -->
+    <path d="M50 12 L82 25 L82 55 Q82 80 50 107 Q18 80 18 55 L18 25 Z" fill="#fff" fill-opacity="0.08"/>
+  </g>
+
+  <!-- Checkmark icon -->
+  <g transform="translate(50, 52)">
+    <polyline class="checkmark" points="-18,0 -6,14 20,-14"/>
+  </g>
+
+  <!-- Lock icon overlay (small, bottom-right) -->
+  <g transform="translate(62, 72)">
+    <rect class="lock-body" x="-6" y="-4" width="12" height="10" rx="1.5"/>
+    <path class="lock-shackle" d="M-4,-4 L-4,-8 Q-4,-13 1,-13 Q6,-13 6,-8 L6,-4"/>
+  </g>
+</svg>
