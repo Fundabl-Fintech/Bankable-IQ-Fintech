@@ -1,0 +1,545 @@
+# Dependabot configuration for automated dependency updates
+# Owner: platform
+# Spec sections: §10.4
+# Blueprint sections: §17
+# Maturity target: lender_ready
+# Security: OWASP ASVS Level 2 baseline, Level 3 for compliance-svc and credit-svc
+
+version: 2
+updates:
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "security"
+    reviewers:
+      - "platform-security-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    # Auto-merge for critical and high severity CVEs only
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    # Security alerts configuration
+    security-updates-only: false
+    target-branch: "main"
+
+  # npm dependencies (Node.js services)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 20
+    labels:
+      - "dependencies"
+      - "npm"
+      - "security"
+    reviewers:
+      - "platform-security-team"
+      - "platform-engineering-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "fix"
+      prefix-development: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    versioning-strategy: increase
+    # Critical and high severity auto-PR
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    # Security updates for critical and high CVEs
+    security-updates-only: false
+    target-branch: "main"
+    # Rebase strategy
+    rebase-strategy: "auto"
+    # Milestone tracking
+    milestone: 1
+
+  # Python dependencies (Python services)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 20
+    labels:
+      - "dependencies"
+      - "python"
+      - "security"
+    reviewers:
+      - "platform-security-team"
+      - "platform-engineering-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "fix"
+      prefix-development: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    versioning-strategy: increase-if-necessary
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    security-updates-only: false
+    target-branch: "main"
+    rebase-strategy: "auto"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "docker"
+      - "security"
+    reviewers:
+      - "platform-security-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    security-updates-only: false
+    target-branch: "main"
+
+  # Terraform dependencies (infrastructure)
+  - package-ecosystem: "terraform"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "security"
+      - "infrastructure"
+    reviewers:
+      - "platform-security-team"
+      - "platform-infrastructure-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    security-updates-only: false
+    target-branch: "main"
+
+  # Compliance service specific dependencies (ASVS Level 3)
+  - package-ecosystem: "npm"
+    directory: "/services/compliance-svc"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 30
+    labels:
+      - "dependencies"
+      - "npm"
+      - "security"
+      - "compliance-svc"
+      - "asvs-level-3"
+    reviewers:
+      - "platform-security-team"
+      - "compliance-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "fix"
+      prefix-development: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    versioning-strategy: increase
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    security-updates-only: false
+    target-branch: "main"
+    rebase-strategy: "auto"
+    milestone: 1
+
+  # Credit service specific dependencies (ASVS Level 3)
+  - package-ecosystem: "npm"
+    directory: "/services/credit-svc"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 30
+    labels:
+      - "dependencies"
+      - "npm"
+      - "security"
+      - "credit-svc"
+      - "asvs-level-3"
+    reviewers:
+      - "platform-security-team"
+      - "credit-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "fix"
+      prefix-development: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    versioning-strategy: increase
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    security-updates-only: false
+    target-branch: "main"
+    rebase-strategy: "auto"
+    milestone: 1
+
+  # Microservices common dependencies
+  - package-ecosystem: "npm"
+    directory: "/services/common"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 20
+    labels:
+      - "dependencies"
+      - "npm"
+      - "security"
+      - "common-services"
+    reviewers:
+      - "platform-security-team"
+      - "platform-engineering-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "fix"
+      prefix-development: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    versioning-strategy: increase
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    security-updates-only: false
+    target-branch: "main"
+    rebase-strategy: "auto"
+
+  # API gateway dependencies
+  - package-ecosystem: "npm"
+    directory: "/gateway"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 20
+    labels:
+      - "dependencies"
+      - "npm"
+      - "security"
+      - "api-gateway"
+    reviewers:
+      - "platform-security-team"
+      - "platform-engineering-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "fix"
+      prefix-development: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    versioning-strategy: increase
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    security-updates-only: false
+    target-branch: "main"
+    rebase-strategy: "auto"
+
+  # Database migration dependencies
+  - package-ecosystem: "npm"
+    directory: "/database"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "npm"
+      - "security"
+      - "database"
+    reviewers:
+      - "platform-security-team"
+      - "platform-infrastructure-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    security-updates-only: false
+    target-branch: "main"
+
+  # Monitoring and observability dependencies
+  - package-ecosystem: "npm"
+    directory: "/monitoring"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "npm"
+      - "security"
+      - "monitoring"
+    reviewers:
+      - "platform-security-team"
+      - "platform-engineering-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    security-updates-only: false
+    target-branch: "main"
+
+  # CI/CD pipeline dependencies
+  - package-ecosystem: "npm"
+    directory: "/.github"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "npm"
+      - "security"
+      - "ci-cd"
+    reviewers:
+      - "platform-security-team"
+      - "platform-engineering-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    security-updates-only: false
+    target-branch: "main"
+
+  # Documentation dependencies
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "monthly"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "npm"
+      - "documentation"
+    reviewers:
+      - "platform-engineering-team"
+    assignees:
+      - "dependabot-admin"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "-"
+    allow:
+      - dependency-type: "direct"
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-type: "semver:minor"
+    security-updates-only: false
+    target-branch: "main"
+
+# Global configuration for security alerts
+registries:
+  npm:
+    type: npm-registry
+    url: https://registry.npmjs.org
+    username: ${{secrets.NPM_USERNAME}}
+    password: ${{secrets.NPM_TOKEN}}
+
+# Security alert configuration
+security-alerts:
+  enabled: true
+  auto-approve: false
+  auto-merge: false
+  labels:
+    - "security"
+    - "auto-pr"
+  reviewers:
+    - "platform-security-team"
+  assignees:
+    - "dependabot-admin"
+
+# Vulnerability alert configuration
+vulnerability-alerts:
+  enabled: true
+  auto-approve: false
+  auto-merge: false
+  labels:
+    - "security"
+    - "vulnerability"
+  reviewers:
+    - "platform-security-team"
+  assignees:
+    - "dependabot-admin"
+  # SLA tracking for findings
+  sla:
+    critical: 24h
+    high: 7d
+    medium: 30d
+
+# Notifications configuration
+notifications:
+  - type: "slack"
+    channel: "#security-alerts"
+    events:
+      - "security_alert"
+      - "vulnerability_alert"
+      - "pull_request_created"
+      - "pull_request_closed"
+  - type: "email"
+    recipients:
+      - "security-team@company.com"
+      - "platform-team@company.com"
+    events:
+      - "security_alert"
+      - "vulnerability_alert"
+
+# Auto-merge rules for critical and high severity CVEs
+auto-merge-rules:
+  - match:
+      dependency-type: "all"
+      update-type: "semver:minor"
+      vulnerability-severity:
+        - "critical"
+        - "high"
+    conditions:
+      - label: "security"
+      - status-checks:
+          - "SAST / Semgrep"
+          - "SAST / CodeQL"
+          - "SCA / Snyk"
+          - "Secret Scanning / GitGuardian"
+          - "Secret Scanning / GitHub"
+          - "DAST / OWASP ZAP"
+          - "Build / Test"
+          - "Build / Lint"
+
+# Milestone configuration for tracking
+milestones:
+  - number: 1
+    title: "Phase 3 Security Enhancements"
+    description: "Security improvements for Phase 3 including bug bounty program"
+    due_on: "2026-12-31T23:59:59Z"
