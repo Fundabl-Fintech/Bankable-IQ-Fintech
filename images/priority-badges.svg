@@ -1,0 +1,209 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <!-- Font imports -->
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&amp;display=swap');
+    </style>
+
+    <!-- Badge gradients -->
+    <linearGradient id="mvp-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a73e8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1557b0;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="phase2-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f9d58;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0b8043;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="phase3-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f4b400;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d99b00;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Glow filters -->
+    <filter id="glow-mvp" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="glow-phase2" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="glow-phase3" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Shadow filter -->
+    <filter id="badge-shadow" x="-10%" y="-10%" width="130%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.15" />
+    </filter>
+
+    <!-- Star icon for MVP -->
+    <g id="star-icon">
+      <path d="M8 1L10.5 5.5L15 6.5L12 10L12.5 15L8 13L3.5 15L4 10L1 6.5L5.5 5.5L8 1Z" fill="currentColor" stroke="none"/>
+    </g>
+
+    <!-- Arrow up icon for Phase 2 -->
+    <g id="arrow-up-icon">
+      <path d="M8 14L8 3M8 3L3 8M8 3L13 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+
+    <!-- Clock icon for Phase 3 -->
+    <g id="clock-icon">
+      <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+      <path d="M8 4.5L8 8.5L11 10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+
+    <!-- Checkmark icon -->
+    <g id="check-icon">
+      <path d="M2 7L6 11L14 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+
+    <!-- Vendor icon placeholders -->
+    <g id="vendor-plaid">
+      <rect x="1" y="1" width="14" height="14" rx="3" fill="#1a73e8" opacity="0.2"/>
+      <path d="M4 8L8 4L12 8L8 12Z" fill="#1a73e8" opacity="0.7"/>
+    </g>
+    <g id="vendor-stripe">
+      <rect x="1" y="1" width="14" height="14" rx="3" fill="#0f9d58" opacity="0.2"/>
+      <path d="M4 6H12M4 10H9" stroke="#0f9d58" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+    </g>
+    <g id="vendor-auth0">
+      <rect x="1" y="1" width="14" height="14" rx="3" fill="#ea4335" opacity="0.2"/>
+      <circle cx="8" cy="8" r="4" stroke="#ea4335" stroke-width="1.5" fill="none"/>
+      <circle cx="8" cy="8" r="1.5" fill="#ea4335"/>
+    </g>
+    <g id="vendor-aws">
+      <rect x="1" y="1" width="14" height="14" rx="3" fill="#f4b400" opacity="0.2"/>
+      <path d="M8 3L12 6V12L8 14L4 12V6L8 3Z" stroke="#f4b400" stroke-width="1.2" fill="none"/>
+    </g>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="600" fill="#f8f9fa" rx="8"/>
+
+  <!-- Title -->
+  <text x="400" y="40" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="700" fill="#202124" text-anchor="middle" letter-spacing="0.5">Priority Badges — Vendor Matrix</text>
+  <text x="400" y="62" font-family="Inter, system-ui, sans-serif" font-size="13" fill="#5f6368" text-anchor="middle">Spec 18.2 · Operational tracking for all vendor relationships</text>
+
+  <!-- Legend -->
+  <g transform="translate(200, 80)">
+    <rect x="0" y="0" width="400" height="36" rx="6" fill="#ffffff" stroke="#e0e0e0" stroke-width="1"/>
+    <rect x="12" y="10" width="16" height="16" rx="4" fill="url(#mvp-gradient)"/>
+    <text x="34" y="22" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#1a73e8">MVP</text>
+    <rect x="112" y="10" width="16" height="16" rx="4" fill="url(#phase2-gradient)"/>
+    <text x="134" y="22" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#0f9d58">Phase 2</text>
+    <rect x="232" y="10" width="16" height="16" rx="4" fill="url(#phase3-gradient)"/>
+    <text x="254" y="22" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#d99b00">Phase 3</text>
+    <text x="340" y="22" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#5f6368">Beta launch: all MVP active</text>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- MVP BADGE — Plaid -->
+  <!-- ============================================ -->
+  <g transform="translate(40, 140)" filter="url(#badge-shadow)">
+    <rect x="0" y="0" width="220" height="120" rx="10" fill="#ffffff" stroke="#1a73e8" stroke-width="2"/>
+    <!-- Priority stripe -->
+    <rect x="0" y="0" width="220" height="5" rx="2" fill="url(#mvp-gradient)"/>
+    <!-- Badge label -->
+    <rect x="140" y="10" width="68" height="22" rx="11" fill="url(#mvp-gradient)" filter="url(#glow-mvp)"/>
+    <text x="174" y="25" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">MVP</text>
+    <!-- Vendor icon -->
+    <use href="#vendor-plaid" x="16" y="16" width="20" height="20"/>
+    <!-- Vendor name -->
+    <text x="44" y="28" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="700" fill="#202124">Plaid</text>
+    <!-- Status indicators -->
+    <g transform="translate(16, 48)">
+      <use href="#check-icon" x="0" y="0" width="12" height="12" color="#0f9d58"/>
+      <text x="18" y="10" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#5f6368">Contract signed</text>
+    </g>
+    <g transform="translate(16, 66)">
+      <use href="#check-icon" x="0" y="0" width="12" height="12" color="#0f9d58"/>
+      <text x="18" y="10" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#5f6368">API keys in Secrets Manager</text>
+    </g>
+    <g transform="translate(16, 84)">
+      <use href="#check-icon" x="0" y="0" width="12" height="12" color="#0f9d58"/>
+      <text x="18" y="10" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#5f6368">Sandbox configured &amp; tested</text>
+    </g>
+    <g transform="translate(16, 102)">
+      <use href="#check-icon" x="0" y="0" width="12" height="12" color="#0f9d58"/>
+      <text x="18" y="10" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#5f6368">Budget alert: $2,500/mo</text>
+    </g>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- MVP BADGE — Stripe -->
+  <!-- ============================================ -->
+  <g transform="translate(290, 140)" filter="url(#badge-shadow)">
+    <rect x="0" y="0" width="220" height="120" rx="10" fill="#ffffff" stroke="#1a73e8" stroke-width="2"/>
+    <rect x="0" y="0" width="220" height="5" rx="2" fill="url(#mvp-gradient)"/>
+    <rect x="140" y="10" width="68" height="22" rx="11" fill="url(#mvp-gradient)" filter="url(#glow-mvp)"/>
+    <text x="174" y="25" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">MVP</text>
+    <use href="#vendor-stripe" x="16" y="16" width="20" height="20"/>
+    <text x="44" y="28" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="700" fill="#202124">Stripe</text>
+    <g transform="translate(16, 48)">
+      <use href="#check-icon" x="0" y="0" width="12" height="12" color="#0f9d58"/>
+      <text x="18" y="10" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#5f6368">Contract signed</text>
+    </g>
+    <g transform="translate(16, 66)">
+      <use href="#check-icon" x="0" y="0" width="12" height="12" color="#0f9d58"/>
+      <text x="18" y="10" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#5f6368">API keys in Secrets Manager</text>
+    </g>
+    <g transform="translate(16, 84)">
+      <use href="#check-icon" x="0" y="0" width="12" height="12" color="#0f9d58"/>
+      <text x="18" y="10" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#5f6368">Test mode verified</text>
+    </g>
+    <g transform="translate(16, 102)">
+      <use href="#check-icon" x="0" y="0" width="12" height="12" color="#0f9d58"/>
+      <text x="18" y="10" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#5f6368">Budget alert: $3,000/mo</text>
+    </g>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- MVP BADGE — Auth0 -->
+  <!-- ============================================ -->
+  <g transform="translate(540, 140)" filter="url(#badge-shadow)">
+    <rect x="0" y="0" width="220" height="120" rx="10" fill="#ffffff" stroke="#1a73e8" stroke-width="2"/>
+    <rect x="0" y="0" width="220" height="5" rx="2" fill="url(#mvp-gradient)"/>
+    <rect x="140" y="10" width="68" height="22" rx="11" fill="url(#mvp-gradient)" filter="url(#glow-mvp)"/>
+    <text x="174" y="25" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">MVP</text>
+    <use href="#vendor-auth0" x="16" y="16" width="20" height="20"/>
+    <text x="44" y="28" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="700" fill="#202124">Auth0</text>
+    <g transform="translate(16, 48)">
+      <use href="#check-icon" x="0" y="0" width="12" height="12" color="#0f9d58"/>
+      <text x="18" y="10" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#5f6368">Contract signed</text>
+    </g>
+    <g transform="translate(16, 66)">
+      <use href="#check-icon" x="0" y="0" width="12" height="12" color="#0f9d58"/>
+      <text x="18" y="10" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#5f6368">API keys in Secrets Manager</text>
+    </g>
+    <g transform="translate(16, 84)">
+      <use href="#check-icon" x="0" y="0" width="12" height="12" color="#0f9d58"/>
+      <text x="18" y="10" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#5f6368">Tenant configured</text>
+    </g>
+    <g transform="translate(16, 102)">
+      <use href="#check-icon" x="0" y="0" width="12" height="12" color="#0f9d58"/>
+      <text x="18" y="10" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#5f6368">Budget alert: $1,500/mo</text>
+    </g>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- MVP BADGE — D&B -->
+  <!-- ============================================ -->
+  <g transform="translate(40, 280)" filter="url(#badge-shadow)">
+    <rect x="0" y="0" width="220" height="120" rx="10" fill="#ffffff" stroke="#1a73e8" stroke-width="2"/>
+    <rect x="0" y="0" width="220" height="5" rx="2" fill="url(#mvp-gradient)"/>
+    <rect x="140" y="10" width="68" height="22" rx="11" fill="url(#mvp-gradient)" filter="url(#glow-mvp)"/>
+    <text x="174" y="25" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">MVP</text>
+    <use href="#vendor-plaid" x="16" y="16" width="20" height="20"/>
+    <text x="44" y="28"
