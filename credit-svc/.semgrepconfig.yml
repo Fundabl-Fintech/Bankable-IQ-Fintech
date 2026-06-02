@@ -1,0 +1,524 @@
+# Owner: platform
+# Spec sections: §10.4
+# Blueprint sections: §17
+# Maturity target: lender_ready
+# Acceptance: OWASP ASVS Level 2 baseline enforced across all services,
+#             ASVS Level 3 for compliance-svc and credit-svc.
+# SAST with Semgrep and GitHub CodeQL running on every PR.
+# DAST with OWASP ZAP scheduled scans against staging at minimum weekly.
+# SCA with Snyk and Dependabot for dependency CVEs with auto-PR on critical and high severity.
+# Secret scanning with GitGuardian and native GitHub secret scanning with push protection enabled.
+# Annual third-party penetration test scheduled.
+# Bug bounty program with HackerOne or Bugcrowd launched in Phase 3.
+# All security findings tracked to closure with SLA (critical 24h, high 7d, medium 30d).
+# Security review gate on material architecture changes.
+
+rules:
+  - id: asvs-level3-injection-prevention
+    pattern-either:
+      - pattern: |
+          $QUERY = "SELECT ..." + $USER_INPUT
+      - pattern: |
+          $QUERY = f"SELECT ... { $USER_INPUT }"
+      - pattern: |
+          $QUERY = "SELECT ... %s" % $USER_INPUT
+      - pattern: |
+          $QUERY = "SELECT ... {}".format($USER_INPUT)
+    message: >
+      Potential SQL injection detected. Use parameterized queries or ORM methods.
+      ASVS Level 3 requires strict input validation and parameterized queries.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-89"
+      owasp: "A1:2021 - Injection"
+      asvs: "V5.1.1, V5.1.2, V5.1.3"
+      asvs-level: "L3"
+      sla: "critical-24h"
+
+  - id: asvs-level3-command-injection
+    pattern-either:
+      - pattern: |
+          os.system($USER_INPUT)
+      - pattern: |
+          subprocess.call($USER_INPUT, shell=True)
+      - pattern: |
+          exec($USER_INPUT)
+      - pattern: |
+          eval($USER_INPUT)
+    message: >
+      Command injection risk. Avoid using shell=True or dynamic command execution.
+      Use subprocess with argument lists instead of shell commands.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-78"
+      owasp: "A1:2021 - Injection"
+      asvs: "V5.2.1, V5.2.2"
+      asvs-level: "L3"
+      sla: "critical-24h"
+
+  - id: asvs-level3-ldap-injection
+    pattern: |
+      ldap_connection.search($BASE_DN, $FILTER.format($USER_INPUT))
+    message: >
+      LDAP injection risk. Use parameterized LDAP queries or escape special characters.
+    languages:
+      - python
+      - java
+    severity: ERROR
+    metadata:
+      cwe: "CWE-90"
+      owasp: "A1:2021 - Injection"
+      asvs: "V5.3.1"
+      asvs-level: "L3"
+      sla: "high-7d"
+
+  - id: asvs-level3-xss-prevention
+    pattern-either:
+      - pattern: |
+          innerHTML = $USER_INPUT
+      - pattern: |
+          document.write($USER_INPUT)
+      - pattern: |
+          $ELEMENT.innerHTML = $USER_INPUT
+    message: >
+      Cross-site scripting (XSS) risk. Use textContent or safe DOM manipulation methods.
+      ASVS Level 3 requires context-aware output encoding.
+    languages:
+      - javascript
+      - typescript
+    severity: ERROR
+    metadata:
+      cwe: "CWE-79"
+      owasp: "A3:2021 - XSS"
+      asvs: "V5.4.1, V5.4.2, V5.4.3"
+      asvs-level: "L3"
+      sla: "high-7d"
+
+  - id: asvs-level3-crypto-weak-algorithm
+    pattern-either:
+      - pattern: |
+          hashlib.md5($DATA).hexdigest()
+      - pattern: |
+          hashlib.sha1($DATA).hexdigest()
+      - pattern: |
+          MessageDigest.getInstance("MD5")
+      - pattern: |
+          MessageDigest.getInstance("SHA-1")
+      - pattern: |
+          crypto.createHash('md5')
+      - pattern: |
+          crypto.createHash('sha1')
+    message: >
+      Weak cryptographic algorithm detected. Use SHA-256 or stronger.
+      ASVS Level 3 requires strong cryptographic algorithms.
+    languages:
+      - python
+      - java
+      - javascript
+      - typescript
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-327"
+      owasp: "A2:2021 - Cryptographic Failures"
+      asvs: "V6.2.1, V6.2.2"
+      asvs-level: "L3"
+      sla: "high-7d"
+
+  - id: asvs-level3-hardcoded-secrets
+    pattern-either:
+      - pattern: |
+          password = "..."
+      - pattern: |
+          secret_key = "..."
+      - pattern: |
+          api_key = "..."
+      - pattern: |
+          token = "..."
+      - pattern: |
+          credential = "..."
+    message: >
+      Hardcoded secret detected. Use environment variables or secret management service.
+      ASVS Level 3 prohibits hardcoded secrets in source code.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-798"
+      owasp: "A2:2021 - Cryptographic Failures"
+      asvs: "V6.4.1, V6.4.2"
+      asvs-level: "L3"
+      sla: "critical-24h"
+
+  - id: asvs-level3-authentication-bypass
+    pattern-either:
+      - pattern: |
+          if $USER_ROLE == "admin" or $USER_ROLE == "superuser":
+      - pattern: |
+          if $USER_ROLE == "admin" || $USER_ROLE == "superuser":
+    message: >
+      Potential authentication bypass. Use centralized authorization checks.
+      ASVS Level 3 requires strict access control verification.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-287"
+      owasp: "A4:2021 - Broken Access Control"
+      asvs: "V2.1.1, V2.1.2, V4.1.1"
+      asvs-level: "L3"
+      sla: "critical-24h"
+
+  - id: asvs-level3-path-traversal
+    pattern-either:
+      - pattern: |
+          open($BASE_PATH + $USER_INPUT, 'r')
+      - pattern: |
+          File.ReadAllText($BASE_PATH + $USER_INPUT)
+      - pattern: |
+          fs.readFileSync($BASE_PATH + $USER_INPUT)
+    message: >
+      Path traversal risk. Validate and sanitize file paths.
+      Use allowlist of permitted paths or canonical path validation.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-22"
+      owasp: "A1:2021 - Injection"
+      asvs: "V5.5.1, V5.5.2"
+      asvs-level: "L3"
+      sla: "high-7d"
+
+  - id: asvs-level3-ssrf-prevention
+    pattern-either:
+      - pattern: |
+          requests.get($USER_INPUT)
+      - pattern: |
+          urllib.request.urlopen($USER_INPUT)
+      - pattern: |
+          http.get($USER_INPUT)
+    message: >
+      Server-Side Request Forgery (SSRF) risk. Validate and restrict URLs.
+      Use allowlist of permitted domains and protocols.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-918"
+      owasp: "A10:2021 - SSRF"
+      asvs: "V5.6.1, V5.6.2"
+      asvs-level: "L3"
+      sla: "high-7d"
+
+  - id: asvs-level3-insecure-deserialization
+    pattern-either:
+      - pattern: |
+          pickle.loads($USER_INPUT)
+      - pattern: |
+          yaml.load($USER_INPUT)
+      - pattern: |
+          JSON.parse($USER_INPUT)
+      - pattern: |
+          ObjectMapper.enableDefaultTyping()
+    message: >
+      Insecure deserialization risk. Use safe deserialization methods or validate input.
+      ASVS Level 3 requires strict input validation for serialized data.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-502"
+      owasp: "A8:2021 - Software and Data Integrity Failures"
+      asvs: "V5.7.1, V5.7.2"
+      asvs-level: "L3"
+      sla: "critical-24h"
+
+  - id: asvs-level3-logging-sensitive-data
+    pattern-either:
+      - pattern: |
+          logger.info(f"Password: { $PASSWORD }")
+      - pattern: |
+          log.Info(f"Credit card: { $CC_NUMBER }")
+      - pattern: |
+          console.log("SSN: " + $SSN)
+    message: >
+      Sensitive data in logs. Never log passwords, credit cards, SSNs, or tokens.
+      ASVS Level 3 prohibits logging sensitive information.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-532"
+      owasp: "A9:2021 - Security Logging and Monitoring Failures"
+      asvs: "V7.1.1, V7.1.2"
+      asvs-level: "L3"
+      sla: "high-7d"
+
+  - id: asvs-level3-cors-misconfiguration
+    pattern: |
+      Access-Control-Allow-Origin: "*"
+    message: >
+      CORS misconfiguration. Do not use wildcard origin in production.
+      Restrict to specific trusted domains.
+    languages:
+      - generic
+    severity: ERROR
+    metadata:
+      cwe: "CWE-942"
+      owasp: "A5:2021 - Security Misconfiguration"
+      asvs: "V4.2.1, V4.2.2"
+      asvs-level: "L3"
+      sla: "high-7d"
+
+  - id: asvs-level3-csrf-protection
+    pattern-either:
+      - pattern: |
+          @csrf_exempt
+      - pattern: |
+          @CrossOrigin
+      - pattern: |
+          [AllowAnonymous]
+    message: >
+      CSRF protection disabled. Ensure CSRF tokens are validated for state-changing requests.
+      ASVS Level 3 requires CSRF protection for all state-changing operations.
+    languages:
+      - python
+      - java
+      - csharp
+    severity: ERROR
+    metadata:
+      cwe: "CWE-352"
+      owasp: "A1:2021 - Broken Access Control"
+      asvs: "V4.3.1, V4.3.2"
+      asvs-level: "L3"
+      sla: "high-7d"
+
+  - id: asvs-level3-xxe-prevention
+    pattern-either:
+      - pattern: |
+          xml.etree.ElementTree.parse($USER_INPUT)
+      - pattern: |
+          DocumentBuilderFactory.newInstance().newDocumentBuilder().parse($USER_INPUT)
+      - pattern: |
+          libxml2.parseDoc($USER_INPUT)
+    message: >
+      XML External Entity (XXE) risk. Disable external entity processing.
+      Use secure XML parser configuration.
+    languages:
+      - python
+      - java
+      - javascript
+      - typescript
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-611"
+      owasp: "A5:2021 - Security Misconfiguration"
+      asvs: "V5.8.1, V5.8.2"
+      asvs-level: "L3"
+      sla: "high-7d"
+
+  - id: asvs-level3-oauth-state-parameter
+    pattern: |
+      oauth.authorize_url($CLIENT_ID, redirect_uri=$REDIRECT_URI)
+    message: >
+      OAuth state parameter missing. Always include and validate state parameter
+      to prevent CSRF in OAuth flows.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-352"
+      owasp: "A1:2021 - Broken Access Control"
+      asvs: "V2.5.1, V2.5.2"
+      asvs-level: "L3"
+      sla: "high-7d"
+
+  - id: asvs-level3-jwt-none-algorithm
+    pattern: |
+      jwt.decode($TOKEN, algorithms=["none"])
+    message: >
+      JWT 'none' algorithm detected. Always validate algorithm and reject 'none'.
+      ASVS Level 3 requires strict JWT validation.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-345"
+      owasp: "A2:2021 - Cryptographic Failures"
+      asvs: "V2.2.1, V2.2.2"
+      asvs-level: "L3"
+      sla: "critical-24h"
+
+  - id: asvs-level3-rate-limiting
+    pattern: |
+      @app.route($ROUTE)
+    message: >
+      Rate limiting not detected. ASVS Level 3 requires rate limiting
+      on authentication endpoints and sensitive operations.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: WARNING
+    metadata:
+      cwe: "CWE-770"
+      owasp: "A4:2021 - Broken Access Control"
+      asvs: "V2.1.3, V2.1.4"
+      asvs-level: "L3"
+      sla: "medium-30d"
+
+  - id: asvs-level3-input-validation
+    pattern-either:
+      - pattern: |
+          $VARIABLE = request.args.get($PARAM)
+      - pattern: |
+          $VARIABLE = request.form.get($PARAM)
+      - pattern: |
+          $VARIABLE = request.json.get($PARAM)
+    message: >
+      Input validation required. Validate all user input against allowlist patterns.
+      ASVS Level 3 requires strict input validation for all parameters.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: WARNING
+    metadata:
+      cwe: "CWE-20"
+      owasp: "A1:2021 - Injection"
+      asvs: "V5.1.4, V5.1.5"
+      asvs-level: "L3"
+      sla: "medium-30d"
+
+  - id: asvs-level3-session-management
+    pattern-either:
+      - pattern: |
+          session.permanent = True
+      - pattern: |
+          session['user_id'] = $USER_ID
+    message: >
+      Session management review needed. Ensure session timeout, secure cookies,
+      and proper session invalidation on logout.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: WARNING
+    metadata:
+      cwe: "CWE-613"
+      owasp: "A7:2021 - Identification and Authentication Failures"
+      asvs: "V3.1.1, V3.1.2, V3.2.1"
+      asvs-level: "L3"
+      sla: "medium-30d"
+
+  - id: asvs-level3-error-handling
+    pattern-either:
+      - pattern: |
+          except Exception as e:
+              return str(e)
+      - pattern: |
+          catch (Exception e) {
+              return e.getMessage();
+          }
+    message: >
+      Information disclosure risk. Do not expose exception details to users.
+      Return generic error messages and log details server-side.
+    languages:
+      - python
+      - javascript
+      - typescript
+      - java
+      - go
+      - ruby
+    severity: ERROR
+    metadata:
+      cwe: "CWE-209"
+      owasp: "A5:2021 - Security Misconfiguration"
+      asvs: "V7.2.1, V7.2.2"
+      asvs-level: "L3"
+      sla: "high-7d"
+
+  - id: asvs-level3-tls-configuration
+    pattern: |
+      ssl._create_default_https_context = ssl._create_unverified_context
+    message: >
+      TLS verification disabled. Always verify TLS certificates.
+      ASVS Level 3 requires proper TLS configuration.
+    languages:
+      - python
+    severity: ERROR
+    metadata:
+      cwe: "CWE-295"
+      owasp: "A2:2021 - Cryptographic Failures"
+      asvs: "V6.3.1, V6.3.2"
+      asvs-level: "L3"
+      sla: "critical-24h"
+
+  - id: asvs-level3-access-control
