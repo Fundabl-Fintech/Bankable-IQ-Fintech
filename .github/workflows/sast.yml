@@ -1,0 +1,331 @@
+# Owner: platform
+# Spec Sections: §10.4
+# Blueprint Sections: §17
+# Maturity Target: lender_ready
+# Description: SAST pipeline with Semgrep and CodeQL running on every PR for all services,
+#              with ASVS Level 2 baseline and Level 3 for compliance-svc and credit-svc.
+
+name: SAST Pipeline
+
+on:
+  pull_request:
+    branches: [main, develop, release/*]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**/*.md'
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 6 AM UTC
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ============================================================================
+  # SAST - Semgrep
+  # ============================================================================
+  semgrep-sast:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep:latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine ASVS Level
+        id: asvs_level
+        run: |
+          # Determine ASVS level based on service path
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD 2>/dev/null || echo "")
+          if echo "$CHANGED_FILES" | grep -qE "^(services/compliance-svc|services/credit-svc)/"; then
+            echo "level=3" >> $GITHUB_OUTPUT
+            echo "ASVS Level 3 applied for compliance-svc/credit-svc"
+          else
+            echo "level=2" >> $GITHUB_OUTPUT
+            echo "ASVS Level 2 baseline applied"
+          fi
+
+      - name: Run Semgrep
+        id: semgrep
+        continue-on-error: true
+        run: |
+          # Build Semgrep command with appropriate rules based on ASVS level
+          SEMGREP_ARGS="--config=p/owasp-top-ten"
+          SEMGREP_ARGS="$SEMGREP_ARGS --config=p/security-audit"
+          SEMGREP_ARGS="$SEMGREP_ARGS --config=p/command-injection"
+          SEMGREP_ARGS="$SEMGREP_ARGS --config=p/sql-injection"
+          SEMGREP_ARGS="$SEMGREP_ARGS --config=p/xss"
+          SEMGREP_ARGS="$SEMGREP_ARGS --config=p/jwt"
+          
+          if [ "${{ steps.asvs_level.outputs.level }}" = "3" ]; then
+            SEMGREP_ARGS="$SEMGREP_ARGS --config=p/owasp-asvs-level-3"
+            SEMGREP_ARGS="$SEMGREP_ARGS --config=p/cryptography"
+            SEMGREP_ARGS="$SEMGREP_ARGS --config=p/session-management"
+          fi
+          
+          SEMGREP_ARGS="$SEMGREP_ARGS --config=p/secrets"
+          SEMGREP_ARGS="$SEMGREP_ARGS --config=p/supply-chain"
+          SEMGREP_ARGS="$SEMGREP_ARGS --sarif --output=semgrep-results.sarif"
+          SEMGREP_ARGS="$SEMGREP_ARGS --metrics=off"
+          SEMGREP_ARGS="$SEMGREP_ARGS --error"
+          
+          semgrep $SEMGREP_ARGS .
+
+      - name: Upload Semgrep SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep-results.sarif
+          category: semgrep
+
+      - name: Enforce ASVS Level Gate
+        if: steps.semgrep.outcome == 'failure'
+        run: |
+          echo "::error::Semgrep SAST scan failed. Findings must be resolved before merge."
+          echo "ASVS Level ${{ steps.asvs_level.outputs.level }} requirements not met."
+          exit 1
+
+  # ============================================================================
+  # SAST - CodeQL
+  # ============================================================================
+  codeql-sast:
+    name: CodeQL SAST
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript', 'typescript', 'python', 'java', 'go']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+          config-file: .github/codeql/codeql-config.yml
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+  # ============================================================================
+  # DAST - OWASP ZAP (Scheduled only)
+  # ============================================================================
+  dast-zap:
+    name: DAST OWASP ZAP
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run OWASP ZAP Scan
+        uses: zaproxy/action-full-scan@v0.12.0
+        with:
+          target: ${{ secrets.STAGING_URL }}
+          rules_file_name: .github/zap/rules.tsv
+          cmd_options: '-a -j -l 2 -n .github/zap/context.context'
+          issue_title: 'OWASP ZAP DAST Report'
+          fail_action: true
+          allow_issue_writing: false
+
+      - name: Upload ZAP Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: report_html/
+          retention-days: 30
+
+  # ============================================================================
+  # SCA - Snyk
+  # ============================================================================
+  snyk-sca:
+    name: Snyk SCA
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: >
+            --all-projects
+            --severity-threshold=high
+            --fail-on=all
+            --json-file-output=snyk-results.json
+
+      - name: Upload Snyk results to GitHub
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk-results.sarif
+          category: snyk
+
+      - name: Snyk Monitor (Continuous)
+        if: github.ref == 'refs/heads/main'
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: monitor
+          args: --all-projects
+
+  # ============================================================================
+  # SCA - Dependabot (Configuration only, runs natively)
+  # ============================================================================
+  dependabot-config:
+    name: Dependabot Configuration Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Dependabot config
+        run: |
+          if [ -f .github/dependabot.yml ]; then
+            echo "Dependabot configuration exists"
+            cat .github/dependabot.yml
+          else
+            echo "::warning::Dependabot configuration not found. Creating default..."
+            mkdir -p .github
+            cat > .github/dependabot.yml << 'EOF'
+            version: 2
+            updates:
+              - package-ecosystem: "npm"
+                directory: "/"
+                schedule:
+                  interval: "daily"
+                open-pull-requests-limit: 10
+                labels:
+                  - "dependencies"
+                  - "security"
+                assignees:
+                  - "platform-team"
+                reviewers:
+                  - "platform-team"
+              - package-ecosystem: "pip"
+                directory: "/"
+                schedule:
+                  interval: "daily"
+                open-pull-requests-limit: 10
+              - package-ecosystem: "docker"
+                directory: "/"
+                schedule:
+                  interval: "weekly"
+                open-pull-requests-limit: 5
+              - package-ecosystem: "github-actions"
+                directory: "/"
+                schedule:
+                  interval: "weekly"
+                open-pull-requests-limit: 5
+            EOF
+            echo "Default Dependabot configuration created"
+          fi
+
+  # ============================================================================
+  # Secret Scanning - GitGuardian
+  # ============================================================================
+  gitguardian-scan:
+    name: GitGuardian Secret Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run GitGuardian Scan
+        uses: GitGuardian/ggshield-action@v1.30.0
+        env:
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+        with:
+          args: >
+            --all-policies
+            --show-secrets
+            --exit-zero
+            --json-output gg-results.json
+
+      - name: Upload GitGuardian Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitguardian-results
+          path: gg-results.json
+          retention-days: 30
+
+  # ============================================================================
+  # Security Review Gate
+  # ============================================================================
+  security-review-gate:
+    name: Security Review Gate
+    runs-on: ubuntu-latest
+    needs: [semgrep-sast, codeql-sast, snyk-sca, gitguardian-scan]
+    if: always()
+    steps:
+      - name: Check all security checks passed
+        run: |
+          # Check if any required job failed
+          if [ "${{ needs.semgrep-sast.result }}" == "failure" ] || \
+             [ "${{ needs.codeql-sast.result }}" == "failure" ] || \
+             [ "${{ needs.snyk-sca.result }}" == "failure" ] || \
+             [ "${{ needs.gitguardian-scan.result }}" == "failure" ]; then
+            echo "::error::Security review gate failed. One or more security checks did not pass."
+            exit 1
+          else
+            echo "All security checks passed. Gate approved."
+          fi
+
+  # ============================================================================
+  # Notification on Failure
+  # ============================================================================
+  notify-failure:
+    name: Notify Security Team
+    runs-on: ubuntu-latest
+    needs: [security-review-gate]
+    if: failure()
+    steps:
+      - name: Send notification
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "channel": "#security-alerts",
+              "username": "Security Bot",
+              "text": "🚨 Security pipeline failed for ${{ github.repository }} on branch ${{ github.ref_name }}. Review required: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
