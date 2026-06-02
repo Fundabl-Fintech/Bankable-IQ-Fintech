@@ -1,0 +1,671 @@
+/* ==========================================================================
+   VendorOps Design System — Print Stylesheet
+   Version: 1.0.0
+   Purpose: Print-optimized styles for runbook export
+   Spec: 18.2 Vendor Matrix
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Base Reset & Page Setup
+   -------------------------------------------------------------------------- */
+
+@media print {
+  *,
+  *::before,
+  *::after {
+    background: transparent !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  @page {
+    margin: 1.5cm 2cm;
+    size: A4 portrait;
+    orphans: 4;
+    widows: 4;
+  }
+
+  body {
+    font-family: 'Inter', 'system-ui', sans-serif;
+    font-size: 10pt;
+    line-height: 1.45;
+    color: #202124;
+    background: #ffffff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* --------------------------------------------------------------------------
+     Hide Interactive / Non-Essential Elements
+     -------------------------------------------------------------------------- */
+
+  nav,
+  .nav,
+  .navbar,
+  .sidebar,
+  .menu,
+  .dropdown,
+  .toolbar,
+  .btn,
+  .button,
+  button,
+  [role="button"],
+  [role="navigation"],
+  .interactive,
+  .no-print,
+  .print-hide,
+  .modal,
+  .overlay,
+  .popover,
+  .toast,
+  .alert-dismissible,
+  .close,
+  .collapse-toggle,
+  .accordion-toggle,
+  .tab-nav,
+  .pagination,
+  .search-box,
+  .search-input,
+  .filter-bar,
+  .sort-controls,
+  .action-bar,
+  .bulk-actions,
+  .context-menu,
+  .drag-handle,
+  .resize-handle,
+  .scroll-indicator,
+  .back-to-top,
+  .chat-widget,
+  .cookie-banner,
+  .announcement-bar,
+  .feedback-widget,
+  .help-tip,
+  .tour-overlay,
+  iframe,
+  .video-container,
+  .carousel,
+  .slider,
+  .carousel-control,
+  .carousel-indicators,
+  .scrollable-tabs,
+  .sticky-header,
+  .sticky-footer,
+  .sticky-sidebar,
+  .fixed-bottom,
+  .fixed-top,
+  .offcanvas,
+  .drawer,
+  .flyout,
+  .sidebar-toggle,
+  .hamburger,
+  .mobile-menu,
+  .responsive-menu {
+    display: none !important;
+  }
+
+  /* --------------------------------------------------------------------------
+     Vendor Matrix Table — Core Layout
+     -------------------------------------------------------------------------- */
+
+  .vendor-matrix,
+  .vendor-table,
+  table.vendor-data,
+  table.runbook-table {
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+    page-break-inside: auto;
+    margin: 1.5em 0;
+  }
+
+  .vendor-matrix caption,
+  .vendor-table caption,
+  table.vendor-data caption {
+    caption-side: top;
+    text-align: left;
+    font-weight: 700;
+    font-size: 11pt;
+    padding: 0.5em 0 0.75em;
+    color: #202124;
+    border-bottom: 2px solid #202124;
+    margin-bottom: 0.5em;
+  }
+
+  .vendor-matrix thead,
+  .vendor-table thead,
+  table.vendor-data thead {
+    display: table-header-group;
+  }
+
+  .vendor-matrix thead th,
+  .vendor-table thead th,
+  table.vendor-data thead th {
+    background: #f8f9fa !important;
+    font-weight: 700;
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 6pt 8pt;
+    border-bottom: 2px solid #202124;
+    text-align: left;
+    vertical-align: bottom;
+    color: #202124 !important;
+  }
+
+  .vendor-matrix tbody tr,
+  .vendor-table tbody tr,
+  table.vendor-data tbody tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+    border-bottom: 1px solid #5f6368;
+  }
+
+  .vendor-matrix tbody tr:last-child,
+  .vendor-table tbody tr:last-child,
+  table.vendor-data tbody tr:last-child {
+    border-bottom: 2px solid #202124;
+  }
+
+  .vendor-matrix tbody td,
+  .vendor-table tbody td,
+  table.vendor-data tbody td {
+    padding: 5pt 8pt;
+    vertical-align: top;
+    line-height: 1.35;
+    color: #202124;
+  }
+
+  /* --------------------------------------------------------------------------
+     Status Indicators — Accessible Color-Coded
+     -------------------------------------------------------------------------- */
+
+  .status-indicator,
+  .status-badge,
+  .status-tag {
+    display: inline-block;
+    padding: 1pt 5pt;
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border: 1px solid #202124;
+    border-radius: 2pt;
+    line-height: 1.3;
+  }
+
+  .status-active,
+  .status-success,
+  .status-provisioned,
+  .status-complete,
+  .status-verified {
+    border-color: #0f9d58;
+    color: #0f9d58 !important;
+  }
+
+  .status-warning,
+  .status-pending,
+  .status-expiring,
+  .status-review,
+  .status-degraded {
+    border-color: #f4b400;
+    color: #f4b400 !important;
+  }
+
+  .status-danger,
+  .status-expired,
+  .status-failed,
+  .status-missing,
+  .status-critical {
+    border-color: #ea4335;
+    color: #ea4335 !important;
+  }
+
+  .status-neutral,
+  .status-inactive,
+  .status-na,
+  .status-unknown {
+    border-color: #5f6368;
+    color: #5f6368 !important;
+  }
+
+  /* --------------------------------------------------------------------------
+     Contract Dates — Always Visible, Prominent
+     -------------------------------------------------------------------------- */
+
+  .contract-date,
+  .renewal-date,
+  .expiry-date,
+  .date-cell,
+  [data-contract-date],
+  .date-important {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 8pt;
+    font-weight: 700;
+    white-space: nowrap;
+    padding: 1pt 3pt;
+    border-bottom: 2px solid #202124;
+    display: inline-block;
+  }
+
+  .contract-date.overdue,
+  .renewal-date.overdue,
+  .expiry-date.overdue,
+  .date-cell.overdue {
+    border-bottom-color: #ea4335;
+    color: #ea4335 !important;
+  }
+
+  .contract-date.upcoming,
+  .renewal-date.upcoming,
+  .expiry-date.upcoming,
+  .date-cell.upcoming {
+    border-bottom-color: #f4b400;
+    color: #f4b400 !important;
+  }
+
+  .contract-date.current,
+  .renewal-date.current,
+  .expiry-date.current,
+  .date-cell.current {
+    border-bottom-color: #0f9d58;
+    color: #0f9d58 !important;
+  }
+
+  /* --------------------------------------------------------------------------
+     Vendor Name & Priority Badges
+     -------------------------------------------------------------------------- */
+
+  .vendor-name {
+    font-weight: 700;
+    font-size: 9pt;
+    color: #202124;
+  }
+
+  .vendor-priority {
+    display: inline-block;
+    font-size: 6.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1pt 4pt;
+    border: 1px solid #202124;
+    border-radius: 1pt;
+    margin-left: 3pt;
+  }
+
+  .vendor-priority.mvp {
+    border-color: #1a73e8;
+    color: #1a73e8 !important;
+  }
+
+  .vendor-priority.phase-2 {
+    border-color: #5f6368;
+    color: #5f6368 !important;
+  }
+
+  .vendor-priority.phase-3 {
+    border-color: #5f6368;
+    color: #5f6368 !important;
+    border-style: dashed;
+  }
+
+  /* --------------------------------------------------------------------------
+     Credential & Configuration Cells
+     -------------------------------------------------------------------------- */
+
+  .credential-cell,
+  .config-cell,
+  .secrets-cell {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 7.5pt;
+    word-break: break-all;
+    max-width: 120pt;
+  }
+
+  .credential-cell .label,
+  .config-cell .label,
+  .secrets-cell .label {
+    font-family: 'Inter', 'system-ui', sans-serif;
+    font-size: 6.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #5f6368 !important;
+    display: block;
+    margin-bottom: 1pt;
+  }
+
+  .credential-status {
+    display: inline-block;
+    width: 7pt;
+    height: 7pt;
+    border-radius: 50%;
+    margin-right: 3pt;
+    border: 1px solid #202124;
+  }
+
+  .credential-status.provisioned {
+    background: #0f9d58 !important;
+    border-color: #0f9d58;
+  }
+
+  .credential-status.missing {
+    background: #ea4335 !important;
+    border-color: #ea4335;
+  }
+
+  .credential-status.pending {
+    background: #f4b400 !important;
+    border-color: #f4b400;
+  }
+
+  /* --------------------------------------------------------------------------
+     SLA & Support Tier Display
+     -------------------------------------------------------------------------- */
+
+  .sla-tier,
+  .support-tier {
+    font-size: 7.5pt;
+    font-weight: 700;
+    padding: 1pt 4pt;
+    border: 1px solid #202124;
+    border-radius: 2pt;
+    display: inline-block;
+  }
+
+  .sla-tier.premium,
+  .support-tier.premium {
+    border-color: #1a73e8;
+    color: #1a73e8 !important;
+  }
+
+  .sla-tier.standard,
+  .support-tier.standard {
+    border-color: #0f9d58;
+    color: #0f9d58 !important;
+  }
+
+  .sla-tier.basic,
+  .support-tier.basic {
+    border-color: #5f6368;
+    color: #5f6368 !important;
+  }
+
+  /* --------------------------------------------------------------------------
+     Fallback & Contingency Sections
+     -------------------------------------------------------------------------- */
+
+  .fallback-vendor,
+  .contingency-plan {
+    font-size: 7.5pt;
+    line-height: 1.4;
+    padding: 3pt 0;
+    border-left: 2pt solid #5f6368;
+    padding-left: 6pt;
+    margin: 2pt 0;
+  }
+
+  .fallback-vendor .label,
+  .contingency-plan .label {
+    font-weight: 700;
+    font-size: 6.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #5f6368 !important;
+    display: block;
+  }
+
+  .fallback-vendor.verified {
+    border-left-color: #0f9d58;
+  }
+
+  .fallback-vendor.pending {
+    border-left-color: #f4b400;
+  }
+
+  .fallback-vendor.missing {
+    border-left-color: #ea4335;
+  }
+
+  /* --------------------------------------------------------------------------
+     Usage Monitoring & Budget Alerts
+     -------------------------------------------------------------------------- */
+
+  .monitoring-cell,
+  .budget-cell {
+    font-size: 7.5pt;
+  }
+
+  .monitoring-status,
+  .budget-status {
+    display: inline-block;
+    padding: 1pt 4pt;
+    font-size: 6.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border: 1px solid #202124;
+    border-radius: 1pt;
+  }
+
+  .monitoring-status.active,
+  .budget-status.configured {
+    border-color: #0f9d58;
+    color: #0f9d58 !important;
+  }
+
+  .monitoring-status.inactive,
+  .budget-status.not-configured {
+    border-color: #ea4335;
+    color: #ea4335 !important;
+  }
+
+  .monitoring-status.partial,
+  .budget-status.partial {
+    border-color: #f4b400;
+    color: #f4b400 !important;
+  }
+
+  /* --------------------------------------------------------------------------
+     Environment Configuration (Sandbox / Production)
+     -------------------------------------------------------------------------- */
+
+  .env-config {
+    font-size: 7pt;
+    line-height: 1.4;
+  }
+
+  .env-config .env-name {
+    font-weight: 700;
+    font-size: 6.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #5f6368 !important;
+  }
+
+  .env-config .env-status {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 7pt;
+  }
+
+  .env-config.sandbox-tested {
+    border-left: 2pt solid #0f9d58;
+    padding-left: 5pt;
+  }
+
+  .env-config.sandbox-untested {
+    border-left: 2pt solid #f4b400;
+    padding-left: 5pt;
+  }
+
+  .env-config.production-active {
+    border-left: 2pt solid #1a73e8;
+    padding-left: 5pt;
+  }
+
+  /* --------------------------------------------------------------------------
+     Section Headers & Grouping
+     -------------------------------------------------------------------------- */
+
+  .vendor-section,
+  .matrix-section {
+    page-break-before: auto;
+    page-break-after: always;
+    margin-top: 2em;
+    padding-top: 1em;
+    border-top: 3px solid #202124;
+  }
+
+  .vendor-section:first-child,
+  .matrix-section:first-child {
+    page-break-before: avoid;
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .vendor-section h2,
+  .matrix-section h2 {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #202124;
+    border-bottom: 2px solid #202124;
+    padding-bottom: 4pt;
+    margin-bottom: 1em;
+    page-break-after: avoid;
+  }
+
+  .vendor-section h3,
+  .matrix-section h3 {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #202124;
+    margin: 1.2em 0 0.5em;
+    page-break-after: avoid;
+  }
+
+  /* --------------------------------------------------------------------------
+     Summary & Legend Blocks
+     -------------------------------------------------------------------------- */
+
+  .matrix-legend,
+  .status-legend {
+    font-size: 7.5pt;
+    border: 1px solid #5f6368;
+    padding: 8pt 10pt;
+    margin: 1em 0;
+    page-break-inside: avoid;
+  }
+
+  .matrix-legend dt,
+  .status-legend dt {
+    font-weight: 700;
+    float: left;
+    clear: left;
+    width: 80pt;
+    margin: 2pt 0;
+  }
+
+  .matrix-legend dd,
+  .status-legend dd {
+    margin: 2pt 0 2pt 85pt;
+    color: #5f6368;
+  }
+
+  .matrix-summary {
+    font-size: 8pt;
+    border: 2px solid #202124;
+    padding: 10pt 12pt;
+    margin: 1.5em 0;
+    page-break-inside: avoid;
+  }
+
+  .matrix-summary .stat {
+    display: inline-block;
+    margin-right: 15pt;
+    font-weight: 700;
+  }
+
+  .matrix-summary .stat .value {
+    font-size: 12pt;
+    font-weight: 700;
+  }
+
+  .matrix-summary .stat .label {
+    font-size: 6.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #5f6368 !important;
+    display: block;
+  }
+
+  /* --------------------------------------------------------------------------
+     Links — Show URLs for Print Reference
+     -------------------------------------------------------------------------- */
+
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 7pt;
+    font-weight: 400;
+    color: #5f6368 !important;
+    word-wrap: break-word;
+  }
+
+  a[href^="#"]::after,
+  a[href^="javascript"]::after {
+    content: "";
+  }
+
+  /* --------------------------------------------------------------------------
+     Page Breaks & Orphan Control
+     -------------------------------------------------------------------------- */
+
+  .page-break {
+    page-break-before: always;
+  }
+
+  .page-break-avoid {
+    page-break-inside: avoid;
+  }
+
+  .keep-together {
+    page-break-inside: avoid;
+  }
+
+  tr,
+  .vendor-row {
+    page-break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  /* --------------------------------------------------------------------------
+     Footer & Metadata
+     -------------------------------------------------------------------------- */
+
+  .print-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    font-size: 6.5pt;
+    color: #5f6368 !important;
+    text-align: center;
+    border-top: 1px solid #5f6368;
+    padding-top: 4pt;
+  }
+
+  .print-footer .page-number::after {
+    content: counter(page);
+  }
+
+  .print-meta {
+    font-size: 6.5pt;
+    color: #5f6368 !important;
