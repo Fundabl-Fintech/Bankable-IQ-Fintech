@@ -1,0 +1,326 @@
+#!/usr/bin/env python3
+"""
+Vendor Logo SVG Generator for VendorOps Design System.
+
+Generates clean, production-grade SVG vendor logos for the vendor matrix
+as specified in engineering-spec-v1.0.html Section 18.2.
+
+Usage:
+    python generate_vendor_logos.py
+
+Output:
+    images/vendor-logos/ directory with individual SVG files for each vendor.
+"""
+
+import os
+import pathlib
+from typing import Dict, List, Optional
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+OUTPUT_DIR = pathlib.Path("images/vendor-logos")
+
+# Design system colors
+COLORS = {
+    "primary": "#1a73e8",
+    "success": "#0f9d58",
+    "warning": "#f4b400",
+    "danger": "#ea4335",
+    "neutral": "#5f6368",
+    "background": "#f8f9fa",
+    "surface": "#ffffff",
+    "text": "#202124",
+}
+
+# All vendors in order of priority (MVP first, then Phase 2, then Phase 3)
+VENDOR_PRIORITY = {
+    "mvp": [
+        "plaid",
+        "equifax",
+        "experian",
+        "transunion",
+        "dnb",
+        "auth0",
+        "stripe",
+        "anthropic",
+        "vercel",
+        "aws",
+        "cloudflare",
+        "datadog",
+        "sendgrid",
+        "twilio",
+    ],
+    "phase2": [
+        "snowflake",
+        "pinecone",
+        "temporal",
+        "textract",
+    ],
+    "phase3": [
+        "docusign",
+        "hackerone",
+        "bugcrowd",
+    ],
+}
+
+# ---------------------------------------------------------------------------
+# SVG Template Helpers
+# ---------------------------------------------------------------------------
+
+def _svg_wrapper(content: str, width: int = 120, height: int = 40) -> str:
+    """Wrap SVG content with standard attributes."""
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" fill="none">
+{content}
+</svg>"""
+
+
+def _rect_bg(color: str = COLORS["background"], width: int = 120, height: int = 40) -> str:
+    """Generate a background rectangle."""
+    return f'  <rect width="{width}" height="{height}" rx="6" fill="{color}"/>'
+
+
+def _vendor_text(name: str, x: int = 60, y: int = 24, color: str = COLORS["text"]) -> str:
+    """Generate centered vendor name text."""
+    return f'  <text x="{x}" y="{y}" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="600" fill="{color}" text-anchor="middle" dominant-baseline="middle">{name}</text>'
+
+
+def _vendor_icon(cx: int, cy: int, r: int = 6, color: str = COLORS["primary"]) -> str:
+    """Generate a simple circle icon representing the vendor."""
+    return f'  <circle cx="{cx}" cy="{cy}" r="{r}" fill="{color}"/>'
+
+
+def _status_indicator(x: int, y: int, status: str = "active") -> str:
+    """Generate a small status dot."""
+    status_colors = {
+        "active": COLORS["success"],
+        "warning": COLORS["warning"],
+        "inactive": COLORS["neutral"],
+        "error": COLORS["danger"],
+    }
+    color = status_colors.get(status, COLORS["neutral"])
+    return f'  <circle cx="{x}" cy="{y}" r="3" fill="{color}"/>'
+
+
+# ---------------------------------------------------------------------------
+# Vendor-specific SVG generators
+# ---------------------------------------------------------------------------
+
+def _generate_plaid_svg() -> str:
+    """Plaid logo - green geometric shape."""
+    return _svg_wrapper(f"""
+{_rect_bg("#f0fdf4")}
+  <path d="M40 12 L60 12 L60 28 L40 28 Z" fill="#0f9d58" opacity="0.8"/>
+  <path d="M60 12 L80 12 L80 28 L60 28 Z" fill="#0f9d58" opacity="0.6"/>
+  <path d="M40 28 L60 28 L60 40 L40 40 Z" fill="#0f9d58" opacity="0.4"/>
+  <path d="M60 28 L80 28 L80 40 L60 40 Z" fill="#0f9d58" opacity="0.2"/>
+{_vendor_text("Plaid", 60, 20)}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_equifax_svg() -> str:
+    """Equifax logo - red/white."""
+    return _svg_wrapper(f"""
+{_rect_bg("#fef2f2")}
+  <rect x="35" y="12" width="50" height="20" rx="4" fill="#ea4335" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">EQUIFAX</text>
+{_vendor_text("Equifax", 60, 36, "#ea4335")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_experian_svg() -> str:
+    """Experian logo - blue."""
+    return _svg_wrapper(f"""
+{_rect_bg("#eff6ff")}
+  <rect x="30" y="10" width="60" height="24" rx="4" fill="#1a73e8" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">experian</text>
+{_vendor_text("Experian", 60, 36, "#1a73e8")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_transunion_svg() -> str:
+    """TransUnion logo - purple."""
+    return _svg_wrapper(f"""
+{_rect_bg("#faf5ff")}
+  <rect x="25" y="10" width="70" height="24" rx="4" fill="#7c3aed" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">TRANSUNION</text>
+{_vendor_text("TransUnion", 60, 36, "#7c3aed")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_dnb_svg() -> str:
+    """Dun & Bradstreet logo - orange."""
+    return _svg_wrapper(f"""
+{_rect_bg("#fff7ed")}
+  <rect x="30" y="10" width="60" height="24" rx="4" fill="#f97316" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">D&B</text>
+{_vendor_text("Dun & Bradstreet", 60, 36, "#f97316")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_auth0_svg() -> str:
+    """Auth0 logo - orange/amber."""
+    return _svg_wrapper(f"""
+{_rect_bg("#fff7ed")}
+  <ellipse cx="60" cy="20" rx="20" ry="12" fill="#f97316" opacity="0.8"/>
+  <text x="60" y="22" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">Auth0</text>
+{_vendor_text("Auth0", 60, 36, "#f97316")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_stripe_svg() -> str:
+    """Stripe logo - dark blue."""
+    return _svg_wrapper(f"""
+{_rect_bg("#f0f9ff")}
+  <rect x="35" y="10" width="50" height="24" rx="6" fill="#0f172a" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">stripe</text>
+{_vendor_text("Stripe", 60, 36, "#0f172a")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_anthropic_svg() -> str:
+    """Anthropic logo - warm orange."""
+    return _svg_wrapper(f"""
+{_rect_bg("#fff7ed")}
+  <circle cx="60" cy="20" r="14" fill="#ea580c" opacity="0.8"/>
+  <text x="60" y="22" font-family="Inter, system-ui, sans-serif" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">ANTH</text>
+{_vendor_text("Anthropic", 60, 36, "#ea580c")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_vercel_svg() -> str:
+    """Vercel logo - black triangle."""
+    return _svg_wrapper(f"""
+{_rect_bg("#f8f9fa")}
+  <polygon points="60,8 80,32 40,32" fill="#000000" opacity="0.9"/>
+  <polygon points="60,14 72,30 48,30" fill="#ffffff" opacity="0.9"/>
+{_vendor_text("Vercel", 60, 36, "#000000")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_aws_svg() -> str:
+    """AWS logo - orange."""
+    return _svg_wrapper(f"""
+{_rect_bg("#fff7ed")}
+  <rect x="30" y="10" width="60" height="24" rx="4" fill="#ff9900" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">AWS</text>
+{_vendor_text("Amazon Web Services", 60, 36, "#ff9900")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_cloudflare_svg() -> str:
+    """Cloudflare logo - orange."""
+    return _svg_wrapper(f"""
+{_rect_bg("#fff7ed")}
+  <rect x="25" y="10" width="70" height="24" rx="4" fill="#f38020" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">CLOUDFLARE</text>
+{_vendor_text("Cloudflare", 60, 36, "#f38020")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_datadog_svg() -> str:
+    """Datadog logo - purple."""
+    return _svg_wrapper(f"""
+{_rect_bg("#faf5ff")}
+  <rect x="30" y="10" width="60" height="24" rx="4" fill="#632ca6" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">Datadog</text>
+{_vendor_text("Datadog", 60, 36, "#632ca6")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_sendgrid_svg() -> str:
+    """SendGrid logo - blue."""
+    return _svg_wrapper(f"""
+{_rect_bg("#eff6ff")}
+  <rect x="30" y="10" width="60" height="24" rx="4" fill="#1a73e8" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">SendGrid</text>
+{_vendor_text("SendGrid", 60, 36, "#1a73e8")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_twilio_svg() -> str:
+    """Twilio logo - red."""
+    return _svg_wrapper(f"""
+{_rect_bg("#fef2f2")}
+  <rect x="30" y="10" width="60" height="24" rx="4" fill="#f22f46" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">twilio</text>
+{_vendor_text("Twilio", 60, 36, "#f22f46")}
+{_status_indicator(108, 8, "active")}
+""")
+
+
+def _generate_snowflake_svg() -> str:
+    """Snowflake logo - blue."""
+    return _svg_wrapper(f"""
+{_rect_bg("#eff6ff")}
+  <polygon points="60,8 80,20 60,32 40,20" fill="#29b5e8" opacity="0.8"/>
+  <polygon points="60,14 72,20 60,26 48,20" fill="#ffffff" opacity="0.9"/>
+{_vendor_text("Snowflake", 60, 36, "#29b5e8")}
+{_status_indicator(108, 8, "warning")}
+""")
+
+
+def _generate_pinecone_svg() -> str:
+    """Pinecone logo - green."""
+    return _svg_wrapper(f"""
+{_rect_bg("#f0fdf4")}
+  <path d="M50 10 L70 10 L70 30 L50 30 Z" fill="#10b981" opacity="0.8"/>
+  <path d="M55 15 L65 15 L65 25 L55 25 Z" fill="#ffffff" opacity="0.9"/>
+{_vendor_text("Pinecone", 60, 36, "#10b981")}
+{_status_indicator(108, 8, "warning")}
+""")
+
+
+def _generate_temporal_svg() -> str:
+    """Temporal logo - purple."""
+    return _svg_wrapper(f"""
+{_rect_bg("#faf5ff")}
+  <rect x="30" y="10" width="60" height="24" rx="4" fill="#8b5cf6" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">Temporal</text>
+{_vendor_text("Temporal Cloud", 60, 36, "#8b5cf6")}
+{_status_indicator(108, 8, "warning")}
+""")
+
+
+def _generate_textract_svg() -> str:
+    """Textract logo - teal."""
+    return _svg_wrapper(f"""
+{_rect_bg("#f0fdfa")}
+  <rect x="30" y="10" width="60" height="24" rx="4" fill="#14b8a6" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">Textract</text>
+{_vendor_text("Textract", 60, 36, "#14b8a6")}
+{_status_indicator(108, 8, "warning")}
+""")
+
+
+def _generate_docusign_svg() -> str:
+    """DocuSign logo - blue."""
+    return _svg_wrapper(f"""
+{_rect_bg("#eff6ff")}
+  <rect x="30" y="10" width="60" height="24" rx="4" fill="#1a73e8" opacity="0.9"/>
+  <text x="60" y="24" font-family="Inter, system-ui, sans-serif" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">DocuSign</text>
+{_vendor_text("DocuSign", 60, 36, "#1a73e8")}
+{_status_indicator(108, 8, "inactive")}
+""")
+
+
+def _generate_hackerone_svg() -> str:
+    """HackerOne logo - green."""
+    return _svg_wrapper(f"""
+{_rect_bg("#f0fdf4")}
+  <rect x="25" y="10" width="70" height="24" rx="4" fill="#0f9d58" opacity="0.9"/>
+  <text
