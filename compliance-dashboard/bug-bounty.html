@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phase 3 Bug Bounty Program · Compliance Security Dashboard</title>
+  <!-- Design system: Compliance Security Dashboard v1.0.0 -->
+  <!-- Fonts & icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; scroll-behavior: smooth; }
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: #f5f5f5;
+      color: #1a237e;
+      line-height: 1.6;
+      padding: 2rem 1.5rem;
+    }
+    /* ===== TYPOGRAPHY ===== */
+    h1, h2, h3, h4, .heading { font-family: 'Inter', sans-serif; font-weight: 600; letter-spacing: -0.01em; }
+    h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 0.5rem; }
+    h2 { font-size: 1.75rem; border-bottom: 3px solid #1a237e; padding-bottom: 0.4rem; margin: 2rem 0 1rem; }
+    h3 { font-size: 1.3rem; margin: 1.5rem 0 0.75rem; color: #0d47a1; }
+    h4 { font-size: 1.1rem; margin: 1rem 0 0.5rem; }
+    p, li { font-size: 1rem; color: #37474f; }
+    code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; background: #e8eaf6; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    a { color: #0d47a1; text-decoration: none; font-weight: 500; }
+    a:hover { text-decoration: underline; }
+    /* ===== LAYOUT ===== */
+    .container { max-width: 1280px; margin: 0 auto; background: white; border-radius: 24px; box-shadow: 0 12px 40px rgba(26,35,126,0.08); padding: 2.5rem 2.8rem; }
+    .badge { display: inline-block; background: #1a237e; color: white; font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.8rem; border-radius: 40px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .badge-success { background: #2e7d32; }
+    .badge-warning { background: #f57f17; }
+    .badge-danger { background: #c62828; }
+    .badge-neutral { background: #37474f; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.8rem; }
+    .card { background: #fafafa; border-radius: 16px; padding: 1.5rem; border: 1px solid #e0e0e0; transition: box-shadow 0.2s; }
+    .card:hover { box-shadow: 0 6px 16px rgba(26,35,126,0.06); }
+    .card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+    .card-header i { font-size: 1.6rem; color: #1a237e; width: 2rem; }
+    .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; }
+    .dot-active { background: #2e7d32; }
+    .dot-pending { background: #f57f17; }
+    .dot-inactive { background: #c62828; }
+    /* ===== TABLE ===== */
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; border-radius: 12px; border: 1px solid #e0e0e0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    th { background: #1a237e; color: white; font-weight: 600; padding: 0.9rem 1rem; text-align: left; font-family: 'Inter', sans-serif; }
+    td { padding: 0.9rem 1rem; border-bottom: 1px solid #e8eaf6; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f0f2ff; }
+    /* ===== METRIC GAUGE (inline) ===== */
+    .gauge-group { display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 1.2rem 0; }
+    .gauge { background: #f5f5f5; border-radius: 40px; padding: 0.3rem 1rem 0.3rem 0.8rem; display: inline-flex; align-items: center; gap: 0.5rem; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.9rem; border: 1px solid #ddd; }
+    .gauge i { font-size: 1rem; }
+    .gauge-value { background: #1a237e; color: white; border-radius: 40px; padding: 0.15rem 0.7rem; font-size: 0.8rem; }
+    /* ===== ALERT BANNER ===== */
+    .alert-banner { background: #fff3e0; border-left: 6px solid #f57f17; padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0; display: flex; align-items: flex-start; gap: 1rem; }
+    .alert-banner i { color: #f57f17; font-size: 1.5rem; }
+    .alert-banner strong { color: #1a237e; }
+    /* ===== COMPLIANCE BADGE ===== */
+    .compliance-badge { display: inline-flex; align-items: center; gap: 0.4rem; background: #e8f5e9; color: #2e7d32; padding: 0.25rem 1rem 0.25rem 0.75rem; border-radius: 40px; font-weight: 600; font-size: 0.85rem; border: 1px solid #a5d6a7; }
+    .compliance-badge i { font-size: 0.9rem; }
+    /* ===== SCOPE LIST ===== */
+    .scope-list { list-style: none; padding: 0; }
+    .scope-list li { padding: 0.5rem 0; border-bottom: 1px solid #eceff1; display: flex; align-items: baseline; gap: 0.6rem; }
+    .scope-list li i { color: #1a237e; width: 1.2rem; }
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) { body { padding: 1rem; } .container { padding: 1.5rem; } h1 { font-size: 1.8rem; } }
+    /* ===== PRINT ===== */
+    @media print { body { background: white; } .container { box-shadow: none; padding: 0; } .alert-banner { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <header style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.5rem;">
+    <div>
+      <span class="badge" style="background: #0d47a1; margin-bottom: 0.5rem; display: inline-block;"><i class="fas fa-bug" style="margin-right: 6px;"></i> PHASE 3 · BUG BOUNTY</span>
+      <h1 style="margin-top: 0.2rem;">Bug Bounty Program Specification</h1>
+      <p style="color: #37474f; font-size: 1.1rem; max-width: 600px;">Scope definition, reward tiers, and submission guidelines for the Compliance Security Dashboard ecosystem.</p>
+    </div>
+    <div style="text-align: right;">
+      <div class="compliance-badge"><i class="fas fa-check-circle"></i> ASVS Level 2 baseline</div>
+      <div style="margin-top: 0.5rem; font-size: 0.85rem; color: #37474f;"><i class="far fa-file-alt"></i> Spec §10.4 · Blueprint §XII</div>
+      <div style="font-size: 0.85rem; color: #37474f;"><i class="far fa-calendar-alt"></i> Maturity: lender_ready</div>
+    </div>
+  </header>
+
+  <!-- FRONTMATTER / DEPENDENCIES -->
+  <div style="display: flex; flex-wrap: wrap; gap: 1rem 2rem; background: #f0f2ff; padding: 0.8rem 1.5rem; border-radius: 40px; margin: 1rem 0 1.8rem; font-size: 0.9rem;">
+    <span><i class="fas fa-code-branch"></i> <strong>Depends on:</strong> 203, 205</span>
+    <span><i class="fas fa-ban"></i> <strong>Blocks:</strong> none</span>
+    <span><i class="fas fa-shield-alt"></i> <strong>Owner:</strong> service:compliance</span>
+    <span><i class="fas fa-check-double"></i> <strong>Acceptance:</strong> 9 criteria</span>
+  </div>
+
+  <!-- METRIC GAUGES (status indicators) -->
+  <div class="gauge-group">
+    <span class="gauge"><i class="fas fa-shield-alt" style="color:#2e7d32;"></i> SAST <span class="gauge-value">Semgrep+CodeQL</span></span>
+    <span class="gauge"><i class="fas fa-dragon" style="color:#0d47a1;"></i> DAST <span class="gauge-value">ZAP scheduled</span></span>
+    <span class="gauge"><i class="fas fa-puzzle-piece" style="color:#f57f17;"></i> SCA <span class="gauge-value">Snyk + Dependabot</span></span>
+    <span class="gauge"><i class="fas fa-key" style="color:#c62828;"></i> Secrets <span class="gauge-value">GitGuardian + GH push</span></span>
+  </div>
+
+  <!-- ALERT BANNER: ASVS Level 3 services -->
+  <div class="alert-banner">
+    <i class="fas fa-exclamation-triangle"></i>
+    <div><strong>Elevated ASVS Level 3</strong> — <code>compliance-svc</code> and <code>credit-svc</code> require stricter controls per §10.4. All findings in these services are triaged as P1/P2.</div>
+  </div>
+
+  <!-- SCOPE SECTION -->
+  <section>
+    <h2><i class="fas fa-crosshairs" style="margin-right: 0.5rem;"></i> In-Scope Assets</h2>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">
+          <i class="fas fa-server"></i>
+          <h3 style="margin:0;">Primary Services</h3>
+        </div>
+        <ul class="scope-list">
+          <li><i class="fas fa-check-circle" style="color:#2e7d32;"></i> <strong>compliance-svc</strong> — regulatory engine, audit trails</li>
+          <li><i class="fas fa-check-circle" style="color:#2e7d32;"></i> <strong>credit-svc</strong> — credit decisioning, bureau data</li>
+          <li><i class="fas fa-check-circle" style="color:#2e7d32;"></i> <strong>api-gateway</strong> — external-facing endpoints</li>
+          <li><i class="fas fa-check-circle" style="color:#2e7d32;"></i> <strong>dashboard-ui</strong> — compliance dashboard (this app)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <i class="fas fa-database"></i>
+          <h3 style="margin:0;">Data Classifications</h3>
+        </div>
+        <ul class="scope-list">
+          <li><i class="fas fa-lock" style="color:#c62828;"></i> <strong>PII/SPII</strong> — SSN, DOB, driver's license</li>
+          <li><i class="fas fa-file-invoice" style="color:#f57f17;"></i> <strong>Regulatory</strong> — audit logs, compliance reports</li>
+          <li><i class="fas fa-credit-card" style="color:#0d47a1;"></i> <strong>Financial</strong> — credit scores, income data</li>
+          <li><i class="fas fa-chart-line" style="color:#2e7d32;"></i> <strong>Operational</strong> — non-sensitive metadata</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- REWARD TIERS -->
+  <section>
+    <h2><i class="fas fa-trophy" style="margin-right: 0.5rem;"></i> Reward Tiers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Severity</th>
+            <th>CVSS Range</th>
+            <th>Reward (USD)</th>
+            <th>Response SLA</th>
+            <th>Examples</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-danger">Critical</span></td>
+            <td>9.0–10.0</td>
+            <td>$5,000 – $10,000</td>
+            <td>24 hours</td>
+            <td>RCE, SQLi with data exfil, auth bypass</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-warning">High</span></td>
+            <td>7.0–8.9</td>
+            <td>$2,000 – $4,999</td>
+            <td>48 hours</td>
+            <td>IDOR, SSRF, stored XSS</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-warning" style="background:#ff8f00;">Medium</span></td>
+            <td>4.0–6.9</td>
+            <td>$500 – $1,999</td>
+            <td>72 hours</td>
+            <td>Reflected XSS, CSRF, info disclosure</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-neutral">Low</span></td>
+            <td>0.1–3.9</td>
+            <td>$100 – $499</td>
+            <td>5 business days</td>
+            <td>Missing headers, minor config issues</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SUBMISSION GUIDELINES -->
+  <section>
+    <h2><i class="fas fa-clipboard-list" style="margin-right: 0.5rem;"></i> Submission Guidelines</h2>
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-header">
+          <i class="fas fa-file-alt"></i>
+          <h4 style="margin:0;">Required Fields</h4>
+        </div>
+        <ul style="list-style: none; padding: 0;">
+          <li style="padding: 0.3rem 0;"><i class="fas fa-check" style="color:#2e7d32; width:1.5rem;"></i> Vulnerability title</li>
+          <li style="padding: 0.3rem 0;"><i class="fas fa-check" style="color:#2e7d32; width:1.5rem;"></i> CVSS v3.1 vector & score</li>
+          <li style="padding:
