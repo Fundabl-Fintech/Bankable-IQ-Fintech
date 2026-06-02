@@ -1,0 +1,447 @@
+# security/asvs-levels.yaml
+# Owner: platform
+# Spec Sections: §10.4
+# Blueprint Sections: §17
+# Maturity Target: lender_ready
+# Acceptance: OWASP ASVS Level 2 baseline enforced across all services,
+#             ASVS Level 3 for compliance-svc and credit-svc.
+# Description: Defines OWASP ASVS security levels and enforcement policies
+#              for all microservices in the platform.
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Global ASVS Level Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+asvs:
+  version: "4.0.3"
+  default_level: 2
+  enforcement: strict
+
+  # Service-specific level overrides
+  service_overrides:
+    compliance-svc:
+      level: 3
+      justification: "Handles sensitive compliance data and regulatory reporting"
+    credit-svc:
+      level: 3
+      justification: "Processes credit scores and financial PII"
+
+  # Level 2 baseline requirements (abbreviated - full list in ASVS spec)
+  level_2_requirements:
+    authentication:
+      - V2.1: "Verify all authentication pathways enforce MFA"
+      - V2.3: "Verify password policies meet minimum complexity"
+    session_management:
+      - V3.1: "Verify session tokens are cryptographically random"
+      - V3.2: "Verify session timeout after 15 minutes of inactivity"
+    access_control:
+      - V4.1: "Verify principle of least privilege enforced"
+      - V4.2: "Verify role-based access control implemented"
+    input_validation:
+      - V5.1: "Verify all input validated server-side"
+      - V5.3: "Verify output encoding for all user-supplied data"
+    cryptography:
+      - V6.1: "Verify TLS 1.2+ for all data in transit"
+      - V6.2: "Verify encryption at rest for sensitive data"
+    error_handling:
+      - V7.1: "Verify no stack traces exposed to users"
+      - V7.2: "Verify consistent error messages"
+    data_protection:
+      - V8.1: "Verify sensitive data classification implemented"
+      - V8.3: "Verify data retention policies enforced"
+    communication:
+      - V9.1: "Verify all internal service communication uses TLS"
+      - V9.2: "Verify API rate limiting implemented"
+    malware:
+      - V10.1: "Verify anti-malware scanning on file uploads"
+    business_logic:
+      - V11.1: "Verify business logic validated server-side"
+    file_upload:
+      - V12.1: "Verify file type validation and size limits"
+    api_web_services:
+      - V13.1: "Verify API authentication and authorization"
+      - V13.2: "Verify API schema validation"
+
+  # Level 3 additional requirements (for compliance-svc and credit-svc)
+  level_3_additions:
+    authentication:
+      - V2.2: "Verify hardware-backed MFA for admin access"
+      - V2.4: "Verify credential rotation every 90 days"
+    session_management:
+      - V3.3: "Verify session binding to client certificates"
+    access_control:
+      - V4.3: "Verify attribute-based access control for sensitive operations"
+    input_validation:
+      - V5.2: "Verify structured data validation against schema"
+    cryptography:
+      - V6.3: "Verify FIPS 140-2 validated cryptographic modules"
+    data_protection:
+      - V8.2: "Verify data masking for non-privileged users"
+      - V8.4: "Verify data anonymization for analytics"
+    api_web_services:
+      - V13.3: "Verify API request signing for critical endpoints"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# SAST Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+sast:
+  enabled: true
+  tools:
+    semgrep:
+      enabled: true
+      rulesets:
+        - "p/owasp-asvs-level2"
+        - "p/owasp-top-10"
+        - "p/security-audit"
+      custom_rules:
+        - "security/semgrep-rules/level3-sensitive-data.yaml"
+      scan_on: "every_pr"
+      fail_on:
+        - "error"
+        - "warning"
+      config:
+        max_memory_mb: 4096
+        timeout_seconds: 600
+
+    codeql:
+      enabled: true
+      languages:
+        - "javascript"
+        - "typescript"
+        - "python"
+        - "java"
+        - "go"
+      queries:
+        - "security-extended"
+        - "security-and-quality"
+      scan_on: "every_pr"
+      fail_on:
+        - "error"
+        - "warning"
+      config:
+        threads: 4
+        ram_mb: 4096
+
+  # Service-specific SAST overrides
+  service_overrides:
+    compliance-svc:
+      semgrep_rulesets:
+        - "p/owasp-asvs-level3"
+        - "p/owasp-top-10"
+        - "p/security-audit"
+      codeql_queries:
+        - "security-extended"
+        - "security-and-quality"
+        - "security-experimental"
+
+    credit-svc:
+      semgrep_rulesets:
+        - "p/owasp-asvs-level3"
+        - "p/owasp-top-10"
+        - "p/security-audit"
+      codeql_queries:
+        - "security-extended"
+        - "security-and-quality"
+        - "security-experimental"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# DAST Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+dast:
+  enabled: true
+  tool: "owasp_zap"
+  schedule:
+    frequency: "weekly"
+    day: "sunday"
+    time: "02:00 UTC"
+    target_environment: "staging"
+
+  scan_config:
+    alert_threshold: "medium"
+    max_scan_duration_minutes: 120
+    context:
+      include_paths:
+        - "/api/**"
+        - "/health"
+        - "/metrics"
+      exclude_paths:
+        - "/logout"
+        - "/static/**"
+
+  # Service-specific DAST overrides
+  service_overrides:
+    compliance-svc:
+      schedule:
+        frequency: "daily"
+        time: "03:00 UTC"
+      scan_config:
+        alert_threshold: "low"
+        max_scan_duration_minutes: 180
+
+    credit-svc:
+      schedule:
+        frequency: "daily"
+        time: "04:00 UTC"
+      scan_config:
+        alert_threshold: "low"
+        max_scan_duration_minutes: 180
+
+# ──────────────────────────────────────────────────────────────────────────────
+# SCA Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+sca:
+  enabled: true
+  tools:
+    snyk:
+      enabled: true
+      scan_on: "every_pr"
+      fail_on:
+        - "critical"
+        - "high"
+      auto_pr:
+        enabled: true
+        severity:
+          - "critical"
+          - "high"
+      config:
+        org: "platform-security"
+        project_tags:
+          - "asvs-level2"
+          - "production"
+
+    dependabot:
+      enabled: true
+      scan_on: "daily"
+      auto_pr:
+        enabled: true
+        severity:
+          - "critical"
+          - "high"
+      config:
+        open-pull-requests-limit: 10
+        schedule:
+          interval: "daily"
+          time: "05:00 UTC"
+
+  # Service-specific SCA overrides
+  service_overrides:
+    compliance-svc:
+      snyk:
+        project_tags:
+          - "asvs-level3"
+          - "production"
+          - "compliance"
+      dependabot:
+        open-pull-requests-limit: 20
+
+    credit-svc:
+      snyk:
+        project_tags:
+          - "asvs-level3"
+          - "production"
+          - "credit"
+      dependabot:
+        open-pull-requests-limit: 20
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Secret Scanning Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+secret_scanning:
+  enabled: true
+  tools:
+    gitguardian:
+      enabled: true
+      scan_on: "every_push"
+      fail_on:
+        - "critical"
+        - "high"
+      config:
+        api_url: "https://api.gitguardian.com"
+        max_commits_per_scan: 100
+        show_found_secrets: false
+
+    github_secret_scanning:
+      enabled: true
+      push_protection: true
+      scan_on: "every_push"
+      fail_on:
+        - "critical"
+        - "high"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Penetration Testing Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+penetration_testing:
+  enabled: true
+  schedule:
+    frequency: "annual"
+    type: "third_party"
+    scope:
+      - "compliance-svc"
+      - "credit-svc"
+      - "api-gateway"
+      - "auth-service"
+    methodology: "OWASP WSTG"
+    reporting:
+      format: "pdf"
+      distribution:
+        - "security-team"
+        - "engineering-leads"
+        - "compliance-team"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Bug Bounty Program Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+bug_bounty:
+  enabled: true
+  phase: 3
+  platform: "hackerone"  # or "bugcrowd"
+  launch_date: "2026-09-01"
+  scope:
+    in_scope:
+      - "*.platform.io"
+      - "api.platform.io"
+    out_of_scope:
+      - "*.dev.platform.io"
+      - "internal-tools"
+  rewards:
+    critical: 5000
+    high: 2500
+    medium: 1000
+    low: 250
+  rules:
+    - "No automated scanning without permission"
+    - "No social engineering"
+    - "No denial of service attacks"
+    - "No access to other customer data"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Finding Management & SLAs
+# ────────────────────────────��─────────────────────────────────────────────────
+finding_management:
+  enabled: true
+  tracking_system: "github_issues"
+  sla:
+    critical:
+      response_time_hours: 4
+      remediation_time_hours: 24
+      escalation: "security-team-lead"
+    high:
+      response_time_hours: 24
+      remediation_time_days: 7
+      escalation: "engineering-manager"
+    medium:
+      response_time_hours: 72
+      remediation_time_days: 30
+      escalation: "tech-lead"
+    low:
+      response_time_hours: 168
+      remediation_time_days: 90
+      escalation: "none"
+
+  # Service-specific SLA overrides
+  service_overrides:
+    compliance-svc:
+      critical:
+        remediation_time_hours: 12
+      high:
+        remediation_time_days: 3
+    credit-svc:
+      critical:
+        remediation_time_hours: 12
+      high:
+        remediation_time_days: 3
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Security Review Gate Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+security_review_gate:
+  enabled: true
+  trigger_conditions:
+    - "material_architecture_changes"
+    - "new_service_deployment"
+    - "dependency_upgrade_major_version"
+    - "api_contract_changes"
+    - "data_flow_changes"
+    - "authentication_authorization_changes"
+
+  review_process:
+    required_approvers:
+      - "security-team"
+      - "platform-architect"
+    review_types:
+      - "architecture_review"
+      - "threat_modeling"
+      - "code_review"
+    documentation_required:
+      - "updated_threat_model"
+      - "data_flow_diagram"
+      - "security_impact_assessment"
+
+  # Service-specific gate overrides
+  service_overrides:
+    compliance-svc:
+      required_approvers:
+        - "security-team"
+        - "platform-architect"
+        - "compliance-officer"
+      review_types:
+        - "architecture_review"
+        - "threat_modeling"
+        - "code_review"
+        - "compliance_review"
+
+    credit-svc:
+      required_approvers:
+        - "security-team"
+        - "platform-architect"
+        - "compliance-officer"
+      review_types:
+        - "architecture_review"
+        - "threat_modeling"
+        - "code_review"
+        - "compliance_review"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Enforcement & Compliance
+# ──────────────────────────────────────────────────────────────────────────────
+enforcement:
+  mode: "blocking"  # Options: "blocking", "warning", "audit"
+  exceptions:
+    process: "security-team-approval"
+    max_duration_days: 30
+    documentation_required: true
+
+  # CI/CD pipeline integration
+  pipeline_gates:
+    pr_checks:
+      - "sast_semgrep"
+      - "sast_codeql"
+      - "sca_snyk"
+      - "secret_scanning_gitguardian"
+      - "secret_scanning_github"
+    deployment_gates:
+      - "dast_zap"
+      - "security_review_gate"
+      - "finding_closure_check"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Reporting & Metrics
+# ──────────────────────────────────────────────────────────────────────────────
+reporting:
+  enabled: true
+  dashboards:
+    - "security-posture-dashboard"
+    - "finding-trends-dashboard"
+    - "sla-compliance-dashboard"
+  metrics:
+    - "findings_by_severity"
+    - "mean_time_to_remediate"
+    - "scan_coverage_percentage"
+    - "sla_compliance_rate"
+    - "exception_count"
+  reporting_frequency: "weekly"
+  distribution:
+    - "security-team"
+    - "engineering-leads"
+    - "compliance-team"
+    - "executive-staff"
