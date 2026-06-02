@@ -1,0 +1,376 @@
+# security/pen-test-schedule.yaml
+# Owner: platform
+# Spec Sections: §10.4
+# Blueprint Sections: §17
+# Maturity Target: lender_ready
+---
+apiVersion: v1
+kind: SecuritySchedule
+metadata:
+  name: pen-test-schedule
+  namespace: security
+  labels:
+    app.kubernetes.io/name: pen-test-schedule
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: platform
+    security.platform.io/maturity: lender-ready
+    security.platform.io/owner: platform
+spec:
+  acceptance:
+    asvs:
+      baseline: "Level 2"
+      enforced_services:
+        - all
+      level3_services:
+        - compliance-svc
+        - credit-svc
+    owasp:
+      standard: ASVS
+      version: "4.0"
+  static_analysis:
+    sast:
+      tools:
+        - name: semgrep
+          rulesets:
+            - p/owasp-top-ten
+            - p/security-audit
+            - p/ci
+          config:
+            severity: [ERROR, WARNING]
+            timeout: 300
+        - name: codeql
+          languages:
+            - javascript
+            - typescript
+            - python
+            - go
+            - java
+          queries: security-extended, security-and-quality
+      triggers:
+        - on: pull_request
+          branches: [main, develop, release/*]
+        - on: push
+          branches: [main]
+    sca:
+      tools:
+        - name: snyk
+          config:
+            severity_threshold: high
+            monitor: true
+            fail_on: critical
+          auto_pr:
+            enabled: true
+            severity: [critical, high]
+        - name: dependabot
+          config:
+            open-pull-requests-limit: 10
+            schedule:
+              interval: daily
+              time: "06:00"
+              timezone: UTC
+          auto_pr:
+            enabled: true
+            severity: [critical, high]
+      triggers:
+        - on: schedule
+          cron: "0 6 * * *"
+        - on: pull_request
+          paths:
+            - "**/package.json"
+            - "**/requirements.txt"
+            - "**/go.mod"
+            - "**/pom.xml"
+            - "**/build.gradle"
+  dynamic_analysis:
+    dast:
+      tool: owasp-zap
+      config:
+        scan_type: full
+        target: https://staging.example.com
+        context: staging
+        rules:
+          - id: 10038  # CSP Scanner
+            alertThreshold: MEDIUM
+          - id: 10040  # Secure Pages
+            alertThreshold: MEDIUM
+          - id: 10096  # Timestamp Disclosure
+            alertThreshold: LOW
+      schedule:
+        frequency: weekly
+        day: sunday
+        time: "02:00"
+        timezone: UTC
+      triggers:
+        - on: schedule
+          cron: "0 2 * * 0"
+        - on: workflow_dispatch
+  secret_scanning:
+    tools:
+      - name: gitguardian
+        config:
+          api_url: https://api.gitguardian.com
+          severity: critical
+          match_showcase: false
+      - name: github-secret-scanning
+        config:
+          push_protection: true
+          alerts:
+            enabled: true
+            severity: [critical, high]
+    triggers:
+      - on: push
+        branches: ["*"]
+      - on: pull_request
+        branches: [main, develop]
+  penetration_testing:
+    annual:
+      enabled: true
+      schedule:
+        frequency: annual
+        month: Q1
+        duration_days: 14
+      scope:
+        in_scope:
+          - https://*.example.com
+          - https://api.example.com
+          - https://app.example.com
+        out_of_scope:
+          - https://admin.example.com
+          - https://internal.example.com
+      provider:
+        type: third_party
+        selection_criteria:
+          - certified_penetration_testers
+          - owasp_membership
+          - insurance_coverage_min: 5M
+      reporting:
+        format: pdf
+        distribution:
+          - security-team@example.com
+          - ciso@example.com
+          - vp-engineering@example.com
+        sla:
+          delivery_days: 14
+  bug_bounty:
+    program:
+      enabled: true
+      launch_phase: 3
+      platform:
+        preferred:
+          - hackerone
+          - bugcrowd
+      config:
+        type: public
+        scope:
+          in_scope:
+            - https://*.example.com
+            - https://api.example.com
+            - https://app.example.com
+          out_of_scope:
+            - https://admin.example.com
+            - https://internal.example.com
+        rewards:
+          critical: 5000
+          high: 2500
+          medium: 1000
+          low: 250
+        rules:
+          - type: response_time
+            sla:
+              triage: 24h
+              critical: 24h
+              high: 72h
+              medium: 7d
+              low: 14d
+          - type: safe_harbor
+            enabled: true
+          - type: eligibility
+            requirements:
+              - must_not_be_employee
+              - must_not_be_contractor
+              - must_follow_testing_guidelines
+      launch_criteria:
+        - phase: 1
+          requirements:
+            - sast_implemented
+            - dast_implemented
+            - sca_implemented
+        - phase: 2
+          requirements:
+            - secret_scanning_implemented
+            - annual_pen_test_completed
+            - all_critical_findings_closed
+        - phase: 3
+          requirements:
+            - asvs_level2_enforced
+            - asvs_level3_enforced_for_compliance_credit
+            - security_review_gate_active
+  vulnerability_management:
+    tracking:
+      tool: github-issues
+      labels:
+        - security
+        - vulnerability
+      severity_labels:
+        critical: severity/critical
+        high: severity/high
+        medium: severity/medium
+        low: severity/low
+    sla:
+      critical:
+        response: 1h
+        remediation: 24h
+        verification: 48h
+      high:
+        response: 4h
+        remediation: 7d
+        verification: 14d
+      medium:
+        response: 24h
+        remediation: 30d
+        verification: 45d
+      low:
+        response: 72h
+        remediation: 90d
+        verification: 120d
+    escalation:
+      - severity: critical
+        notify:
+          - security-team@example.com
+          - on-call@example.com
+          - ciso@example.com
+        escalation_time: 12h
+      - severity: high
+        notify:
+          - security-team@example.com
+        escalation_time: 3d
+  security_review:
+    gate:
+      enabled: true
+      triggers:
+        - type: architecture_change
+          description: Material changes to system architecture
+          examples:
+            - new_service_deployment
+            - database_migration
+            - authentication_flow_change
+            - api_version_change
+            - infrastructure_provider_change
+      process:
+        - step: 1
+          action: submit_architecture_documentation
+          owner: engineering_team
+        - step: 2
+          action: security_review
+          owner: security_team
+          sla: 5d
+        - step: 3
+          action: approval
+          owner: ciso
+          required_approvers: 1
+        - step: 4
+          action: implementation
+          owner: engineering_team
+          gates:
+            - all_security_findings_resolved
+            - security_tests_passing
+  automation:
+    ci_cd:
+      triggers:
+        - on: pull_request
+          jobs:
+            - sast
+            - sca
+            - secret_scanning
+        - on: push
+          branches: [main, develop]
+          jobs:
+            - sast
+            - sca
+            - secret_scanning
+            - dast
+        - on: schedule
+          jobs:
+            - dast
+            - sca_full_scan
+      environments:
+        staging:
+          dast_target: https://staging.example.com
+          authentication:
+            type: oauth
+            client_id: ${STAGING_CLIENT_ID}
+            client_secret: ${STAGING_CLIENT_SECRET}
+        production:
+          dast_target: https://example.com
+          authentication:
+            type: oauth
+            client_id: ${PROD_CLIENT_ID}
+            client_secret: ${PROD_CLIENT_SECRET}
+  secrets:
+    required:
+      - name: SNYK_TOKEN
+        description: Snyk API token for dependency scanning
+      - name: GITGUARDIAN_API_KEY
+        description: GitGuardian API key for secret scanning
+      - name: HACKERONE_API_TOKEN
+        description: HackerOne API token for bug bounty management
+      - name: BUGCROWD_API_KEY
+        description: Bugcrowd API key for bug bounty management
+      - name: ZAP_API_KEY
+        description: OWASP ZAP API key for DAST scanning
+      - name: STAGING_CLIENT_ID
+        description: OAuth client ID for staging environment
+      - name: STAGING_CLIENT_SECRET
+        description: OAuth client secret for staging environment
+      - name: PROD_CLIENT_ID
+        description: OAuth client ID for production environment
+      - name: PROD_CLIENT_SECRET
+        description: OAuth client secret for production environment
+    storage: github-secrets
+  compliance:
+    standards:
+      - name: OWASP ASVS
+        levels:
+          baseline: Level 2
+          enhanced: Level 3
+        services:
+          level3:
+            - compliance-svc
+            - credit-svc
+    reporting:
+      frequency: quarterly
+      format: pdf
+      distribution:
+        - ciso@example.com
+        - compliance@example.com
+        - audit@example.com
+    audit_trail:
+      enabled: true
+      retention_days: 365
+      storage: s3://security-audit-logs
+  notifications:
+    channels:
+      - type: email
+        recipients:
+          - security-team@example.com
+          - ciso@example.com
+      - type: slack
+        webhook: ${SLACK_SECURITY_WEBHOOK}
+        channel: "#security-alerts"
+      - type: pagerduty
+        integration_key: ${PAGERDUTY_SECURITY_KEY}
+        severity_mapping:
+          critical: critical
+          high: high
+          medium: warning
+          low: info
+  maintenance:
+    review_cycle: quarterly
+    last_reviewed: 2026-06-01
+    next_review: 2026-09-01
+    owner: platform-security-team
+    change_log:
+      - date: 2026-06-01
+        author: platform-security-team
+        description: Initial creation of pen-test schedule and bug bounty program
+        version: 1.0.0
