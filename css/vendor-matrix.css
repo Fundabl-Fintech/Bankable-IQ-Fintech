@@ -1,0 +1,567 @@
+/* ==========================================================================
+   Vendor Matrix - VendorOps Design System v1.0.0
+   Spec: 18.2 Vendor Matrix
+   Purpose: Sticky headers, row highlighting, status indicators, tooltip positioning
+   Author: VendorOps Team
+   Last Updated: 2024-01-15
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   CSS Custom Properties (Design Tokens)
+   -------------------------------------------------------------------------- */
+:root {
+  /* Color Palette */
+  --vm-primary: #1a73e8;
+  --vm-primary-dark: #1557b0;
+  --vm-primary-light: #e8f0fe;
+  --vm-success: #0f9d58;
+  --vm-success-dark: #0b8043;
+  --vm-success-light: rgba(15, 157, 88, 0.1);
+  --vm-warning: #f4b400;
+  --vm-warning-dark: #d99e00;
+  --vm-warning-light: rgba(244, 180, 0, 0.1);
+  --vm-danger: #ea4335;
+  --vm-danger-dark: #c5221f;
+  --vm-danger-light: rgba(234, 67, 53, 0.1);
+  --vm-neutral: #5f6368;
+  --vm-neutral-light: rgba(95, 99, 104, 0.1);
+  --vm-bg: #f8f9fa;
+  --vm-surface: #ffffff;
+  --vm-text: #202124;
+  --vm-text-secondary: #5f6368;
+  --vm-text-disabled: #9aa0a6;
+  --vm-border: #dadce0;
+  --vm-border-light: #e8eaed;
+  --vm-hover-bg: #f1f3f4;
+  --vm-selected-bg: #e8f0fe;
+  --vm-selected-hover: #d2e3fc;
+  --vm-sticky-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --vm-focus-ring: 0 0 0 3px rgba(26, 115, 232, 0.3);
+
+  /* Typography */
+  --vm-font-heading: 'Inter', system-ui, -apple-system, sans-serif;
+  --vm-font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --vm-font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+  /* Spacing (based on 4px scale) */
+  --vm-space-1: 4px;
+  --vm-space-2: 8px;
+  --vm-space-3: 12px;
+  --vm-space-4: 16px;
+  --vm-space-5: 24px;
+  --vm-space-6: 32px;
+  --vm-space-7: 48px;
+  --vm-space-8: 64px;
+
+  /* Sizing */
+  --vm-cell-min-width: 120px;
+  --vm-status-dot-size: 10px;
+  --vm-tooltip-max-width: 320px;
+  --vm-row-height: 48px;
+  --vm-header-height: 56px;
+  --vm-badge-height: 22px;
+  --vm-icon-size: 16px;
+
+  /* Transitions */
+  --vm-transition-fast: 150ms ease;
+  --vm-transition-normal: 250ms ease;
+  --vm-transition-slow: 400ms ease;
+
+  /* Z-index layers */
+  --vm-z-sticky: 100;
+  --vm-z-sticky-header: 101;
+  --vm-z-sticky-vendor: 102;
+  --vm-z-tooltip: 1000;
+  --vm-z-overlay: 500;
+  --vm-z-focus: 10;
+
+  /* Border Radius */
+  --vm-radius-sm: 4px;
+  --vm-radius-md: 8px;
+  --vm-radius-lg: 12px;
+  --vm-radius-full: 9999px;
+}
+
+/* --------------------------------------------------------------------------
+   Base Matrix Container
+   -------------------------------------------------------------------------- */
+.vendor-matrix {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - var(--vm-space-8));
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius-md);
+  font-family: var(--vm-font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--vm-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar styling for better UX */
+.vendor-matrix::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.vendor-matrix::-webkit-scrollbar-track {
+  background: var(--vm-bg);
+  border-radius: var(--vm-radius-sm);
+}
+
+.vendor-matrix::-webkit-scrollbar-thumb {
+  background: var(--vm-border);
+  border-radius: var(--vm-radius-sm);
+  border: 2px solid var(--vm-bg);
+}
+
+.vendor-matrix::-webkit-scrollbar-thumb:hover {
+  background: var(--vm-neutral);
+}
+
+/* Firefox scrollbar */
+.vendor-matrix {
+  scrollbar-width: thin;
+  scrollbar-color: var(--vm-border) var(--vm-bg);
+}
+
+/* --------------------------------------------------------------------------
+   Matrix Table Structure
+   -------------------------------------------------------------------------- */
+.vendor-matrix__table {
+  width: 100%;
+  min-width: 800px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+/* --------------------------------------------------------------------------
+   Sticky Header Implementation
+   -------------------------------------------------------------------------- */
+.vendor-matrix__header {
+  position: sticky;
+  top: 0;
+  z-index: var(--vm-z-sticky);
+  background: var(--vm-surface);
+  box-shadow: var(--vm-sticky-shadow);
+}
+
+.vendor-matrix__header-row {
+  height: var(--vm-header-height);
+}
+
+.vendor-matrix__header-cell {
+  position: sticky;
+  top: 0;
+  z-index: var(--vm-z-sticky-header);
+  padding: var(--vm-space-3) var(--vm-space-4);
+  font-family: var(--vm-font-heading);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--vm-text-secondary);
+  background: var(--vm-surface);
+  border-bottom: 2px solid var(--vm-border);
+  text-align: left;
+  white-space: nowrap;
+  user-select: none;
+  transition: color var(--vm-transition-fast);
+}
+
+.vendor-matrix__header-cell:hover {
+  color: var(--vm-primary);
+}
+
+.vendor-matrix__header-cell:focus-visible {
+  outline: none;
+  box-shadow: var(--vm-focus-ring);
+  z-index: var(--vm-z-focus);
+}
+
+/* Sticky first column (vendor name) */
+.vendor-matrix__header-cell--vendor {
+  position: sticky;
+  left: 0;
+  z-index: var(--vm-z-sticky-vendor);
+  min-width: 200px;
+  background: var(--vm-surface);
+  border-right: 2px solid var(--vm-border);
+}
+
+.vendor-matrix__cell--vendor {
+  position: sticky;
+  left: 0;
+  z-index: calc(var(--vm-z-sticky) - 1);
+  min-width: 200px;
+  background: var(--vm-surface);
+  border-right: 2px solid var(--vm-border-light);
+  transition: background var(--vm-transition-fast);
+}
+
+/* --------------------------------------------------------------------------
+   Row Styles
+   -------------------------------------------------------------------------- */
+.vendor-matrix__row {
+  height: var(--vm-row-height);
+  transition: background var(--vm-transition-fast), box-shadow var(--vm-transition-fast);
+  cursor: pointer;
+}
+
+.vendor-matrix__row:nth-child(even) {
+  background: var(--vm-bg);
+}
+
+.vendor-matrix__row:hover {
+  background: var(--vm-hover-bg);
+  box-shadow: inset 0 -1px 0 var(--vm-border-light);
+}
+
+.vendor-matrix__row:focus-visible {
+  outline: none;
+  box-shadow: var(--vm-focus-ring);
+  z-index: var(--vm-z-focus);
+}
+
+.vendor-matrix__row--selected {
+  background: var(--vm-selected-bg) !important;
+  box-shadow: inset 3px 0 0 var(--vm-primary);
+}
+
+.vendor-matrix__row--selected:hover {
+  background: var(--vm-selected-hover) !important;
+}
+
+.vendor-matrix__row--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Phase grouping visual separator */
+.vendor-matrix__row--phase-divider {
+  background: linear-gradient(to right, transparent 0%, var(--vm-border-light) 50%, transparent 100%);
+  height: 2px;
+  pointer-events: none;
+}
+
+.vendor-matrix__row--phase-label {
+  font-family: var(--vm-font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--vm-text-secondary);
+  padding: var(--vm-space-2) var(--vm-space-4);
+  background: var(--vm-bg);
+  border-bottom: 1px solid var(--vm-border);
+  height: auto;
+  min-height: 32px;
+}
+
+/* --------------------------------------------------------------------------
+   Cell Styles
+   -------------------------------------------------------------------------- */
+.vendor-matrix__cell {
+  padding: var(--vm-space-2) var(--vm-space-4);
+  border-bottom: 1px solid var(--vm-border-light);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background var(--vm-transition-fast);
+}
+
+.vendor-matrix__cell--vendor {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--vm-text);
+}
+
+.vendor-matrix__cell--mono {
+  font-family: var(--vm-font-mono);
+  font-size: 13px;
+}
+
+.vendor-matrix__cell--date {
+  font-family: var(--vm-font-mono);
+  font-size: 12px;
+  color: var(--vm-text-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   Status Indicators
+   -------------------------------------------------------------------------- */
+.vendor-matrix__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vm-space-2);
+  padding: 2px var(--vm-space-2);
+  border-radius: var(--vm-radius-full);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.vendor-matrix__status--active {
+  background: var(--vm-success-light);
+  color: var(--vm-success-dark);
+}
+
+.vendor-matrix__status--pending {
+  background: var(--vm-warning-light);
+  color: var(--vm-warning-dark);
+}
+
+.vendor-matrix__status--inactive {
+  background: var(--vm-danger-light);
+  color: var(--vm-danger-dark);
+}
+
+.vendor-matrix__status--unknown {
+  background: var(--vm-neutral-light);
+  color: var(--vm-neutral);
+}
+
+/* Status dot indicator */
+.vendor-matrix__status-dot {
+  width: var(--vm-status-dot-size);
+  height: var(--vm-status-dot-size);
+  border-radius: var(--vm-radius-full);
+  flex-shrink: 0;
+}
+
+.vendor-matrix__status-dot--active {
+  background: var(--vm-success);
+}
+
+.vendor-matrix__status-dot--pending {
+  background: var(--vm-warning);
+}
+
+.vendor-matrix__status-dot--inactive {
+  background: var(--vm-danger);
+}
+
+.vendor-matrix__status-dot--unknown {
+  background: var(--vm-neutral);
+}
+
+/* --------------------------------------------------------------------------
+   Badge Styles
+   -------------------------------------------------------------------------- */
+.vendor-matrix__badge {
+  display: inline-flex;
+  align-items: center;
+  height: var(--vm-badge-height);
+  padding: 0 var(--vm-space-2);
+  border-radius: var(--vm-radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.vendor-matrix__badge--mvp {
+  background: var(--vm-primary-light);
+  color: var(--vm-primary-dark);
+}
+
+.vendor-matrix__badge--phase2 {
+  background: var(--vm-warning-light);
+  color: var(--vm-warning-dark);
+}
+
+.vendor-matrix__badge--phase3 {
+  background: var(--vm-neutral-light);
+  color: var(--vm-neutral);
+}
+
+/* --------------------------------------------------------------------------
+   Tooltip Implementation
+   -------------------------------------------------------------------------- */
+.vendor-matrix__tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.vendor-matrix__tooltip-trigger {
+  cursor: help;
+  border-bottom: 1px dashed var(--vm-border);
+}
+
+.vendor-matrix__tooltip-content {
+  position: absolute;
+  bottom: calc(100% + var(--vm-space-2));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--vm-z-tooltip);
+  max-width: var(--vm-tooltip-max-width);
+  padding: var(--vm-space-3) var(--vm-space-4);
+  background: var(--vm-text);
+  color: var(--vm-surface);
+  border-radius: var(--vm-radius-md);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: normal;
+  word-wrap: break-word;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--vm-transition-fast), transform var(--vm-transition-fast);
+}
+
+.vendor-matrix__tooltip:hover .vendor-matrix__tooltip-content,
+.vendor-matrix__tooltip:focus-within .vendor-matrix__tooltip-content {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Tooltip arrow */
+.vendor-matrix__tooltip-content::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--vm-text);
+}
+
+/* --------------------------------------------------------------------------
+   Progress Bar
+   -------------------------------------------------------------------------- */
+.vendor-matrix__progress {
+  width: 100%;
+  height: 6px;
+  background: var(--vm-border-light);
+  border-radius: var(--vm-radius-full);
+  overflow: hidden;
+}
+
+.vendor-matrix__progress-bar {
+  height: 100%;
+  border-radius: var(--vm-radius-full);
+  transition: width var(--vm-transition-normal);
+}
+
+.vendor-matrix__progress-bar--low {
+  background: var(--vm-danger);
+}
+
+.vendor-matrix__progress-bar--medium {
+  background: var(--vm-warning);
+}
+
+.vendor-matrix__progress-bar--high {
+  background: var(--vm-success);
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Design
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .vendor-matrix {
+    max-height: calc(100vh - var(--vm-space-6));
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .vendor-matrix__header-cell {
+    font-size: 11px;
+    padding: var(--vm-space-2) var(--vm-space-3);
+  }
+
+  .vendor-matrix__cell {
+    padding: var(--vm-space-1) var(--vm-space-3);
+    font-size: 13px;
+  }
+
+  .vendor-matrix__cell--vendor {
+    min-width: 150px;
+    font-size: 13px;
+  }
+
+  .vendor-matrix__header-cell--vendor {
+    min-width: 150px;
+  }
+
+  .vendor-matrix__status {
+    font-size: 11px;
+    padding: 1px var(--vm-space-1);
+  }
+
+  .vendor-matrix__badge {
+    font-size: 10px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .vendor-matrix__table {
+    min-width: 600px;
+  }
+
+  .vendor-matrix__cell--vendor {
+    min-width: 120px;
+  }
+
+  .vendor-matrix__header-cell--vendor {
+    min-width: 120px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Accessibility Improvements
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .vendor-matrix,
+  .vendor-matrix__row,
+  .vendor-matrix__cell,
+  .vendor-matrix__header-cell,
+  .vendor-matrix__tooltip-content,
+  .vendor-matrix__progress-bar {
+    transition: none;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --vm-bg: #1a1a2e;
+    --vm-surface: #16213e;
+    --vm-text: #e0e0e0;
+    --vm-text-secondary: #a0a0a0;
+    --vm-text-disabled: #606060;
+    --vm-border: #2a2a4a;
+    --vm-border-light: #1e1e3a;
+    --vm-hover-bg: #1e1e3a;
+    --vm-selected-bg: #1a2744;
+    --vm-selected-hover: #1e3050;
+    --vm-sticky-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    --vm-focus-ring: 0 0 0 3px rgba(26, 115, 232, 0.5);
+  }
+
+  .vendor-matrix__tooltip-content {
+    background: var(--vm-surface);
+    color: var(--vm-text);
+    border: 1px solid var(--vm-border);
+  }
+
+  .vendor-matrix__tooltip-content::after {
+    border-top-color: var(--vm-surface);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Print Styles
+   -------------------------------------------------------------------------- */
+@media print {
