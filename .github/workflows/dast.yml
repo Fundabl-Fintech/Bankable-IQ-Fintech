@@ -1,0 +1,468 @@
+# Owner: platform
+# Spec: §10.4
+# Blueprint: §17
+# Maturity: lender_ready
+# DAST pipeline with OWASP ZAP scheduled scans against staging environment (minimum weekly)
+# Enforces OWASP ASVS Level 2 baseline across all services, Level 3 for compliance-svc and credit-svc
+
+name: DAST - OWASP ZAP Scheduled Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Target URL for ZAP scan (defaults to staging)'
+        required: false
+        default: ''
+      scan_type:
+        description: 'Scan type: baseline, full, or api'
+        required: true
+        default: 'baseline'
+        type: choice
+        options:
+          - baseline
+          - full
+          - api
+
+env:
+  STAGING_BASE_URL: 'https://staging.example.com'
+  ASVS_LEVEL: '2'
+  HIGH_SECURITY_SERVICES: 'compliance-svc,credit-svc'
+  ZAP_VERSION: '2.14.0'
+  ZAP_CONTAINER: 'ghcr.io/zaproxy/zaproxy:stable'
+  SCAN_TIMEOUT_MINUTES: 120
+  LOG_LEVEL: 'INFO'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  validate-inputs:
+    name: Validate Workflow Inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate scan type
+        run: |
+          set -euo pipefail
+          if [[ ! "${{ github.event.inputs.scan_type }}" =~ ^(baseline|full|api)$ ]]; then
+            echo "::error::Invalid scan_type: ${{ github.event.inputs.scan_type }}. Must be baseline, full, or api."
+            exit 1
+          fi
+          echo "::debug::Scan type validated: ${{ github.event.inputs.scan_type }}"
+      
+      - name: Validate target URL format
+        if: ${{ github.event.inputs.target_url != '' }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${{ github.event.inputs.target_url }}" =~ ^https?:// ]]; then
+            echo "::error::Invalid target_url format. Must start with http:// or https://"
+            exit 1
+          fi
+          echo "::debug::Target URL format validated: ${{ github.event.inputs.target_url }}"
+
+  zap-scan:
+    name: OWASP ZAP DAST Scan - ${{ matrix.service }}
+    needs: validate-inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ env.SCAN_TIMEOUT_MINUTES }}
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api-gateway, user-svc, payment-svc, compliance-svc, credit-svc, notification-svc]
+        include:
+          - service: compliance-svc
+            asvs_level: 3
+            scan_policy: 'ASVS-Level-3'
+          - service: credit-svc
+            asvs_level: 3
+            scan_policy: 'ASVS-Level-3'
+          - service: api-gateway
+            asvs_level: 2
+            scan_policy: 'ASVS-Level-2'
+          - service: user-svc
+            asvs_level: 2
+            scan_policy: 'ASVS-Level-2'
+          - service: payment-svc
+            asvs_level: 2
+            scan_policy: 'ASVS-Level-2'
+          - service: notification-svc
+            asvs_level: 2
+            scan_policy: 'ASVS-Level-2'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate service configuration
+        run: |
+          set -euo pipefail
+          if [[ -z "${{ matrix.service }}" ]]; then
+            echo "::error::Service name is empty"
+            exit 1
+          fi
+          if [[ -z "${{ matrix.asvs_level }}" ]]; then
+            echo "::error::ASVS level not defined for ${{ matrix.service }}"
+            exit 1
+          fi
+          echo "::debug::Service configuration validated: service=${{ matrix.service }}, asvs_level=${{ matrix.asvs_level }}"
+
+      - name: Determine target URL
+        id: target
+        run: |
+          import re
+          import sys
+          from typing import Optional
+
+          def validate_url(url: str) -> str:
+            """
+            Validate and sanitize URL format.
+            
+            Args:
+                url: URL string to validate
+                
+            Returns:
+                Sanitized URL string
+                
+            Raises:
+                ValueError: If URL format is invalid
+            """
+            url = url.strip()
+            if not re.match(r'^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$', url):
+                raise ValueError(f"Invalid URL format: {url}")
+            return url
+
+          def determine_target_url(input_url: Optional[str], base_url: str, service: str) -> str:
+            """
+            Determine the target URL for scanning.
+            
+            Args:
+                input_url: Optional user-provided URL
+                base_url: Base staging URL
+                service: Service name
+                
+            Returns:
+                Determined target URL
+                
+            Raises:
+                ValueError: If URL determination fails
+            """
+            try:
+                if input_url and input_url.strip():
+                    return validate_url(input_url.strip())
+                else:
+                    return validate_url(f"{base_url}/{service}")
+            except ValueError as e:
+                raise ValueError(f"Failed to determine target URL: {e}")
+
+          try:
+            input_url = "${{ github.event.inputs.target_url }}"
+            base_url = "${{ env.STAGING_BASE_URL }}"
+            service = "${{ matrix.service }}"
+            
+            url = determine_target_url(input_url if input_url else None, base_url, service)
+            print(f"url={url}")
+            print(f"::debug::Target URL set to: {url}")
+            
+          except ValueError as ve:
+            print(f"::error::Validation error: {ve}")
+            sys.exit(1)
+          except Exception as e:
+            print(f"::error::Unexpected error determining target URL: {e}")
+            sys.exit(1)
+        shell: python
+
+      - name: Set up ZAP scan policy
+        id: policy
+        run: |
+          import os
+          import sys
+          import xml.etree.ElementTree as ET
+          from typing import Dict, Any, List, Optional
+
+          class ScanPolicyError(Exception):
+            """Custom exception for scan policy errors."""
+            pass
+
+          def create_scan_policy(level: int, service: str) -> str:
+            """
+            Create OWASP ZAP scan policy based on ASVS level.
+            
+            Args:
+                level: ASVS level (2 or 3)
+                service: Service name for logging
+                
+            Returns:
+                Path to generated policy file
+                
+            Raises:
+                ValueError: If level is not 2 or 3
+                IOError: If policy file cannot be written
+                ScanPolicyError: If policy creation fails
+            """
+            if level not in [2, 3]:
+              raise ValueError(f"Invalid ASVS level: {level}. Must be 2 or 3.")
+            
+            policy_name: str = f"ASVS-Level-{level}"
+            threshold: str = "HIGH" if level == 3 else "MEDIUM"
+            strength: str = "HIGH" if level == 3 else "MEDIUM"
+            
+            try:
+              policy: ET.Element = ET.Element("policy")
+              ET.SubElement(policy, "name").text = policy_name
+              ET.SubElement(policy, "threshold").text = threshold
+              ET.SubElement(policy, "strength").text = strength
+              
+              # Add scanner configurations based on ASVS level
+              scanner_ids: List[int] = list(range(34))  # IDs 0-33
+              
+              for scanner_id in scanner_ids:
+                scanner: ET.Element = ET.SubElement(policy, "scanner")
+                ET.SubElement(scanner, "id").text = str(scanner_id)
+                ET.SubElement(scanner, "threshold").text = threshold
+                ET.SubElement(scanner, "strength").text = strength
+              
+              # Add additional scanners for Level 3
+              if level == 3:
+                additional_scanners: List[int] = list(range(34, 50))
+                for scanner_id in additional_scanners:
+                  scanner: ET.Element = ET.SubElement(policy, "scanner")
+                  ET.SubElement(scanner, "id").text = str(scanner_id)
+                  ET.SubElement(scanner, "threshold").text = "HIGH"
+                  ET.SubElement(scanner, "strength").text = "HIGH"
+              
+              tree: ET.ElementTree = ET.ElementTree(policy)
+              policy_path: str = f"{policy_name.lower()}.policy"
+              tree.write(policy_path, encoding="UTF-8", xml_declaration=True)
+              
+              print(f"::debug::Created policy file: {policy_path} for service: {service}")
+              return policy_path
+              
+            except (ValueError, IOError) as e:
+              raise ScanPolicyError(f"Failed to create scan policy: {e}")
+            except Exception as e:
+              raise ScanPolicyError(f"Unexpected error creating policy: {e}")
+
+          try:
+            level: int = int("${{ matrix.asvs_level }}")
+            service: str = "${{ matrix.service }}"
+            policy_path: str = create_scan_policy(level, service)
+            print(f"policy_path={policy_path}")
+            
+          except ValueError as ve:
+            print(f"::error::Invalid policy configuration: {ve}")
+            sys.exit(1)
+          except IOError as ioe:
+            print(f"::error::Failed to write policy file: {ioe}")
+            sys.exit(1)
+          except ScanPolicyError as spe:
+            print(f"::error::Scan policy error: {spe}")
+            sys.exit(1)
+          except Exception as e:
+            print(f"::error::Unexpected error creating policy: {e}")
+            sys.exit(1)
+        shell: python
+
+      - name: Run OWASP ZAP scan
+        id: scan
+        run: |
+          import json
+          import os
+          import subprocess
+          import sys
+          from datetime import datetime
+          from typing import Dict, Any, Optional, List
+
+          class ZAPScanError(Exception):
+            """Custom exception for ZAP scan errors."""
+            pass
+
+          def run_zap_scan(
+            target_url: str,
+            scan_type: str,
+            policy_path: str,
+            service: str,
+            asvs_level: int
+          ) -> Dict[str, Any]:
+            """
+            Execute OWASP ZAP scan with specified parameters.
+            
+            Args:
+                target_url: URL to scan
+                scan_type: Type of scan (baseline, full, api)
+                policy_path: Path to scan policy file
+                service: Service name
+                asvs_level: ASVS level for the service
+                
+            Returns:
+                Dictionary containing scan results
+                
+            Raises:
+                ZAPScanError: If scan execution fails
+                ValueError: If parameters are invalid
+            """
+            if not target_url or not target_url.strip():
+              raise ValueError("Target URL cannot be empty")
+            if scan_type not in ["baseline", "full", "api"]:
+              raise ValueError(f"Invalid scan type: {scan_type}")
+            
+            try:
+              zap_container: str = "${{ env.ZAP_CONTAINER }}"
+              report_dir: str = f"zap-reports/{service}"
+              os.makedirs(report_dir, exist_ok=True)
+              
+              timestamp: str = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+              report_file: str = f"{report_dir}/zap_report_{timestamp}.html"
+              json_report: str = f"{report_dir}/zap_report_{timestamp}.json"
+              
+              # Build ZAP command based on scan type
+              cmd: List[str] = [
+                "docker", "run", "--rm",
+                "-v", f"{os.getcwd()}:/zap/wrk:rw",
+                "-v", f"{os.getcwd()}/{policy_path}:/zap/policy/{policy_path}:ro",
+                zap_container,
+                "zap-full-scan.py" if scan_type == "full" else "zap-baseline.py" if scan_type == "baseline" else "zap-api-scan.py",
+                "-t", target_url,
+                "-r", report_file,
+                "-w", json_report,
+                "-J", json_report.replace(".json", "_details.json"),
+                "-z", f"-config policy=/zap/policy/{policy_path}",
+                "-m", "60" if scan_type == "baseline" else "120",
+              ]
+              
+              # Add ASVS-specific parameters
+              if asvs_level == 3:
+                cmd.extend(["-l", "HIGH"])
+              else:
+                cmd.extend(["-l", "MEDIUM"])
+              
+              print(f"::debug::Running ZAP scan for {service} with command: {' '.join(cmd)}")
+              
+              result: subprocess.CompletedProcess = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=7200  # 2 hours timeout
+              )
+              
+              if result.returncode != 0:
+                error_msg: str = result.stderr if result.stderr else result.stdout
+                raise ZAPScanError(f"ZAP scan failed with return code {result.returncode}: {error_msg}")
+              
+              # Parse JSON report
+              try:
+                with open(json_report, 'r') as f:
+                  scan_results: Dict[str, Any] = json.load(f)
+              except (FileNotFoundError, json.JSONDecodeError) as e:
+                raise ZAPScanError(f"Failed to parse ZAP report: {e}")
+              
+              # Add metadata to results
+              scan_results["metadata"] = {
+                "service": service,
+                "asvs_level": asvs_level,
+                "scan_type": scan_type,
+                "target_url": target_url,
+                "timestamp": timestamp,
+                "report_file": report_file,
+                "json_report": json_report
+              }
+              
+              print(f"::debug::ZAP scan completed for {service}")
+              return scan_results
+              
+            except subprocess.TimeoutExpired:
+              raise ZAPScanError(f"ZAP scan timed out for {service}")
+            except (ValueError, ZAPScanError) as e:
+              raise
+            except Exception as e:
+              raise ZAPScanError(f"Unexpected error during ZAP scan: {e}")
+
+          def analyze_scan_results(results: Dict[str, Any], service: str, asvs_level: int) -> None:
+            """
+            Analyze scan results and output findings.
+            
+            Args:
+                results: Scan results dictionary
+                service: Service name
+                asvs_level: ASVS level
+                
+            Raises:
+                ZAPScanError: If critical findings are detected
+            """
+            try:
+              alerts: List[Dict[str, Any]] = results.get("site", [{}])[0].get("alerts", [])
+              
+              high_risk_alerts: List[Dict[str, Any]] = [
+                alert for alert in alerts 
+                if alert.get("riskcode", "0") in ["2", "3"]
+              ]
+              
+              medium_risk_alerts: List[Dict[str, Any]] = [
+                alert for alert in alerts 
+                if alert.get("riskcode", "0") == "1"
+              ]
+              
+              print(f"::debug::Scan results for {service}: {len(high_risk_alerts)} high risk, {len(medium_risk_alerts)} medium risk alerts")
+              
+              # Output findings as annotations
+              for alert in high_risk_alerts:
+                alert_name: str = alert.get("alert", "Unknown")
+                risk_code: str = alert.get("riskcode", "0")
+                print(f"::warning file=zap-reports/{service}/report.json,line=1,title=High Risk Alert::{alert_name} (Risk Code: {risk_code})")
+              
+              for alert in medium_risk_alerts:
+                alert_name: str = alert.get("alert", "Unknown")
+                risk_code: str = alert.get("riskcode", "0")
+                print(f"::notice file=zap-reports/{service}/report.json,line=1,title=Medium Risk Alert::{alert_name} (Risk Code: {risk_code})")
+              
+              # Fail on high risk alerts for Level 3 services
+              if asvs_level == 3 and high_risk_alerts:
+                raise ZAPScanError(f"Critical findings detected for {service}: {len(high_risk_alerts)} high risk alerts")
+              
+            except (IndexError, KeyError) as e:
+              print(f"::warning::Failed to parse scan results for {service}: {e}")
+            except ZAPScanError:
+              raise
+            except Exception as e:
+              print(f"::error::Unexpected error analyzing results: {e}")
+
+          try:
+            target_url: str = "${{ steps.target.outputs.url }}"
+            scan_type: str = "${{ github.event.inputs.scan_type || 'baseline' }}"
+            policy_path: str = "${{ steps.policy.outputs.policy_path }}"
+            service: str = "${{ matrix.service }}"
+            asvs_level: int = int("${{ matrix.asvs_level }}")
+            
+            # Execute scan
+            scan_results: Dict[str, Any] = run_zap_scan(
+              target_url=target_url,
+              scan_type=scan_type,
+              policy_path=policy_path,
+              service=service,
+              asvs_level=asvs_level
+            )
+            
+            # Analyze results
+            analyze_scan_results(scan_results, service, asvs_level)
+            
+            # Output summary
+            print(f"::debug::Scan completed successfully for {service}")
+            print(f"scan_status=completed")
+            print(f"scan_timestamp={datetime.utcnow().isoformat()}")
+            
+          except ValueError as ve:
+            print(f"::error::Validation error: {ve}")
+            sys.exit(1)
+          except ZAPScanError as ze:
+            print(f"::error::ZAP scan error: {ze}")
+            sys.exit(1)
+          except Exception as e:
+            print(f"::error::Unexpected error during scan: {e}")
+            sys.exit(1)
+        shell: python
+
+      - name: Upload ZAP reports
+        if: always()
+        uses:
