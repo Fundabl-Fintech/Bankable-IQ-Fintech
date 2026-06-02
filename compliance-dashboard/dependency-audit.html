@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dependency Audit · Compliance Security Dashboard</title>
+  <!-- Google Fonts + JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+  <!-- Font Awesome 6 (free) for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    /* ----- reset & base ----- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #f5f5f5;
+      color: #1a237e;
+      line-height: 1.5;
+      padding: 2rem 1.5rem;
+    }
+    .dashboard-container {
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+
+    /* ----- design tokens (matching spec) ----- */
+    :root {
+      --primary: #1a237e;
+      --secondary: #0d47a1;
+      --success: #2e7d32;
+      --warning: #f57f17;
+      --danger: #c62828;
+      --neutral: #37474f;
+      --bg: #f5f5f5;
+      --card-bg: #ffffff;
+      --border-light: #e0e0e0;
+      --text-dark: #1a237e;
+      --text-muted: #546e7a;
+      --heading-font: 'Inter', sans-serif;
+      --body-font: 'Roboto', sans-serif;
+      --mono-font: 'JetBrains Mono', monospace;
+      --radius: 12px;
+      --shadow-sm: 0 2px 6px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 8px 20px rgba(0,0,0,0.05), 0 2px 6px rgba(0,0,0,0.04);
+    }
+
+    h1, h2, h3, h4 {
+      font-family: var(--heading-font);
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    h1 { font-size: 1.9rem; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.4rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+    h3 { font-size: 1.1rem; font-weight: 600; }
+    .subhead {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 1.5rem;
+      border-left: 4px solid var(--secondary);
+      padding-left: 1rem;
+    }
+
+    /* ----- cards & layout ----- */
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .grid-3col {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 1.5rem 1.25rem;
+      transition: box-shadow 0.2s ease;
+      border: 1px solid var(--border-light);
+    }
+    .card:hover {
+      box-shadow: var(--shadow-md);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: #e8eaf6;
+      color: var(--primary);
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.7rem;
+      border-radius: 20px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .badge-success { background: #e8f5e9; color: var(--success); }
+    .badge-warning { background: #fff8e1; color: var(--warning); }
+    .badge-danger { background: #ffebee; color: var(--danger); }
+    .badge-neutral { background: #eceff1; color: var(--neutral); }
+
+    /* ----- metric gauges (simple) ----- */
+    .metric-row {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+    .metric-item {
+      flex: 1;
+      min-width: 100px;
+    }
+    .metric-value {
+      font-family: var(--mono-font);
+      font-size: 2rem;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+    .metric-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .metric-trend {
+      font-size: 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      margin-left: 0.5rem;
+    }
+
+    /* ----- vulnerability table (CVE) ----- */
+    .table-wrapper {
+      overflow-x: auto;
+      margin-top: 0.5rem;
+    }
+    .cve-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .cve-table th {
+      text-align: left;
+      padding: 0.75rem 0.5rem 0.5rem 0.5rem;
+      font-weight: 600;
+      color: var(--neutral);
+      border-bottom: 2px solid var(--border-light);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .cve-table td {
+      padding: 0.7rem 0.5rem;
+      border-bottom: 1px solid #f0f0f0;
+      vertical-align: middle;
+    }
+    .cve-table tr:last-child td { border-bottom: none; }
+    .cve-id {
+      font-family: var(--mono-font);
+      font-weight: 500;
+      color: var(--secondary);
+    }
+    .severity-pill {
+      display: inline-block;
+      padding: 0.15rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .severity-critical { background: #d32f2f20; color: #c62828; }
+    .severity-high { background: #f57f1720; color: #e65100; }
+    .severity-medium { background: #fbc02d20; color: #f57f17; }
+    .severity-low { background: #2e7d3220; color: #2e7d32; }
+    .patch-status {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .auto-merge-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      background: #e8f5e9;
+      padding: 0.15rem 0.6rem;
+      border-radius: 16px;
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--success);
+    }
+    .auto-merge-off {
+      background: #ffebee;
+      color: var(--danger);
+    }
+
+    /* ----- scan timeline / schedule ----- */
+    .timeline-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .timeline-item:last-child { border-bottom: none; }
+    .timeline-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      color: white;
+      flex-shrink: 0;
+    }
+    .timeline-content {
+      flex: 1;
+    }
+    .timeline-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .timeline-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* ----- compliance badges / alert banner ----- */
+    .alert-banner {
+      background: #fff8e1;
+      border-left: 6px solid var(--warning);
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+    }
+    .alert-banner i { color: var(--warning); font-size: 1.2rem; }
+    .compliance-badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      margin: 0.75rem 0 0.25rem 0;
+    }
+    .compliance-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: #e8eaf6;
+      padding: 0.2rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .compliance-badge i { font-size: 0.6rem; }
+
+    /* ----- responsive ----- */
+    @media (max-width: 900px) {
+      .grid-2col, .grid-3col { grid-template-columns: 1fr; }
+      body { padding: 1rem; }
+    }
+    @media (max-width: 600px) {
+      .metric-row { flex-direction: column; gap: 0.5rem; }
+    }
+
+    /* ----- utility spacing ----- */
+    .mt-1 { margin-top: 0.75rem; }
+    .mb-1 { margin-bottom: 0.75rem; }
+    .flex { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .text-mono { font-family: var(--mono-font); }
+  </style>
+</head>
+<body>
+  <div class="dashboard-container" id="app">
+    <!-- Alert Banner: Security Posture Notice -->
+    <div class="alert-banner" role="alert" aria-live="polite">
+      <i class="fas fa-shield-alt" aria-hidden="true"></i>
+      <span><strong>ASVS Level 3</strong> enforced for compliance-svc &amp; credit-svc · <strong>Level 2</strong> baseline for all services · <strong>ZAP DAST</strong> scheduled · <strong>SAST</strong> per PR</span>
+    </div>
+
+    <!-- Header -->
+    <header>
+      <h1><i class="fas fa-shield-virus" aria-hidden="true" style="margin-right: 0.5rem;"></i>Dependency Audit · Compliance Security Dashboard</h1>
+      <div class="subhead">
+        §10.4 Security Practice Stack · §14.2 Remediation SLAs · <span class="text-mono" id="timestamp">Loading…</span>
+      </div>
+    </header>
+
+    <!-- Compliance Badges Row -->
+    <div class="compliance-badge-row" aria-label="Compliance standards">
+      <span class="compliance-badge"><i class="fas fa-check-circle" aria-hidden="true"></i> OWASP ASVS L2</span>
+      <span class="compliance-badge"><i class="fas fa-check-circle" aria-hidden="true"></i> ASVS L3 (credit-svc)</span>
+      <span class="compliance-badge"><i class="fas fa-check-circle" aria-hidden="true"></i> ASVS L3 (compliance-svc)</span>
+      <span class="compliance-badge"><i class="fas fa-check-circle" aria-hidden="true"></i> ZAP DAST Scheduled</span>
+      <span class="compliance-badge"><i class="fas fa-check-circle" aria-hidden="true"></i> Snyk SCA</span>
+      <span class="compliance-badge"><i class="fas fa-check-circle" aria-hidden="true"></i> Dependabot Auto-merge</span>
+      <span class="compliance-badge"><i class="fas fa-check-circle" aria-hidden="true"></i> GitGuardian</span>
+      <span class="compliance-badge"><i class="fas fa-check-circle" aria-hidden="true"></i> Semgrep + CodeQL</span>
+    </div>
+
+    <!-- Key Metrics Row -->
+    <section class="grid-3col" aria-label="Key metrics">
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-exclamation-triangle" aria-hidden="true" style="color: var(--warning);"></i> Open Vulnerabilities</h3>
+          <span class="badge badge-warning">2 critical</span>
+        </div>
+        <div class="metric-row">
+          <div class="metric-item">
+            <div class="metric-value" id="criticalCount">2</div>
+            <div class="metric-label">Critical</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value" id="highCount">4</div>
+            <div class="metric-label">High</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value" id="mediumCount">7</div>
+            <div class="metric-label">Medium</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value" id="lowCount">12</div>
+            <div class="metric-label">Low</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-clock" aria-hidden="true" style="color: var(--secondary);"></i> Scan Coverage</h3>
+          <span class="badge badge-success">On track</span>
+        </div>
+        <div class="metric-row">
+          <div class="metric-item">
+            <div class="metric-value" id="sastCoverage">100%</div>
+            <div class="metric-label">SAST per PR</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value" id="dastCoverage">98%</div>
+            <div class="metric-label">DAST scheduled</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value" id="scaCoverage">100%</div>
+            <div class="metric-label">SCA (Snyk)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-shield" aria-hidden="true" style="color: var(--success);"></i> Remediation SLA</h3>
+          <span class="badge badge-neutral">30d window</span>
+        </div>
+        <div class="metric-row">
+          <div class="metric-item">
+            <div class="metric-value" id="slaCompliance">94%</div>
+            <div class="metric-label">Within SLA</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value" id="overdueCount">3</div>
+            <div class="metric-label">Overdue</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Vulnerability Table + Timeline Grid -->
+    <div class="grid-2col">
+      <!-- CVE Table -->
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-bug" aria-hidden="true" style="color: var(--danger);"></i> Recent Vulnerabilities (CVE)</h3>
+          <span class="badge badge-danger">2 new since last scan</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="cve-table" aria-label="Vulnerability list">
+            <thead>
+              <tr>
+                <th scope="col">CVE ID</th>
+                <th scope="col">Severity</th>
+                <th scope="col">Package</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody id="cveTableBody">
+              <!-- Data populated by JavaScript -->
+              <tr>
+                <td><span class="cve-id">CVE-2024-1234</span></td>
+                <td><span class="severity-pill severity-critical">Critical</span></td>
+                <td>lodash</td>
+                <td><span class="
