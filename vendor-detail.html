@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5">
+    <title>Vendor Detail · VendorOps</title>
+    <!-- Inter & JetBrains Mono from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ===== RESET & BASE ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: #f8f9fa;
+            color: #202124;
+            line-height: 1.5;
+            padding: 24px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        a { color: #1a73e8; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        img, svg { display: block; max-width: 100%; }
+
+        /* ===== DESIGN SYSTEM TOKENS ===== */
+        :root {
+            --primary: #1a73e8;
+            --success: #0f9d58;
+            --warning: #f4b400;
+            --danger: #ea4335;
+            --neutral: #5f6368;
+            --bg: #f8f9fa;
+            --surface: #ffffff;
+            --text: #202124;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-hover: 0 4px 12px rgba(0,0,0,0.1);
+            --border: #e0e3e7;
+            --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+        }
+
+        /* ===== LAYOUT ===== */
+        .container {
+            max-width: 1440px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* ===== HEADER ===== */
+        .vendor-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 16px 24px;
+            margin-bottom: 32px;
+            background: var(--surface);
+            padding: 20px 24px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+        .vendor-header h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .vendor-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #e8f0fe;
+            color: #1a73e8;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .vendor-meta {
+            margin-left: auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px 24px;
+            font-size: 0.875rem;
+            color: var(--neutral);
+        }
+        .vendor-meta span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .status-dot.active { background: var(--success); }
+        .status-dot.warning { background: var(--warning); }
+        .status-dot.critical { background: var(--danger); }
+        .status-dot.neutral { background: var(--neutral); }
+
+        /* ===== GRID / CARDS ===== */
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+        }
+        @media (min-width: 768px) {
+            .detail-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .grid-full { grid-column: 1 / -1; }
+        }
+        @media (min-width: 1024px) {
+            .detail-grid {
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 20px 20px 24px;
+            transition: box-shadow 0.15s ease;
+            border: 1px solid var(--border);
+        }
+        .card:hover {
+            box-shadow: var(--shadow-hover);
+        }
+        .card-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--neutral);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid #f0f2f5;
+            padding-bottom: 12px;
+        }
+        .card-title svg {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: var(--neutral);
+            stroke-width: 2;
+        }
+
+        /* ===== STATUS INDICATORS ===== */
+        .status-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            padding: 4px 12px 4px 8px;
+            border-radius: 20px;
+            background: #f1f3f4;
+            color: var(--neutral);
+        }
+        .status-tag .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .status-tag.green { background: #e6f4ea; color: #1e7e34; }
+        .status-tag.green .dot { background: var(--success); }
+        .status-tag.yellow { background: #fef7e0; color: #b06000; }
+        .status-tag.yellow .dot { background: var(--warning); }
+        .status-tag.red { background: #fce8e6; color: #c5221f; }
+        .status-tag.red .dot { background: var(--danger); }
+        .status-tag.blue { background: #e8f0fe; color: #1a73e8; }
+        .status-tag.blue .dot { background: var(--primary); }
+
+        /* ===== KEY-VALUE ROWS ===== */
+        .kv-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 8px 0;
+            border-bottom: 1px solid #f5f6f8;
+            font-size: 0.9rem;
+        }
+        .kv-row:last-child { border-bottom: none; }
+        .kv-label {
+            color: var(--neutral);
+            font-weight: 500;
+            flex-shrink: 0;
+            margin-right: 16px;
+        }
+        .kv-value {
+            text-align: right;
+            font-weight: 500;
+            word-break: break-word;
+            max-width: 60%;
+        }
+        .kv-value.mono {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            background: #f1f3f4;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .kv-value .badge {
+            display: inline-block;
+            background: #f1f3f4;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* ===== PROGRESS / BAR ===== */
+        .budget-bar {
+            margin: 12px 0 4px;
+            height: 6px;
+            background: #e8eaed;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .budget-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            background: var(--success);
+            width: 0%;
+        }
+        .budget-bar-fill.warning { background: var(--warning); }
+        .budget-bar-fill.danger { background: var(--danger); }
+
+        /* ===== MONITOR LIST ===== */
+        .monitor-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f5f6f8;
+            font-size: 0.9rem;
+        }
+        .monitor-item:last-child { border-bottom: none; }
+        .monitor-item .status-dot { width: 8px; height: 8px; }
+        .monitor-item .label { flex: 1; }
+        .monitor-item .value { font-weight: 600; font-size: 0.85rem; }
+
+        /* ===== CONTINGENCY TABLE ===== */
+        .contingency-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        .contingency-table th {
+            text-align: left;
+            font-weight: 600;
+            color: var(--neutral);
+            padding: 6px 8px;
+            border-bottom: 2px solid #e8eaed;
+        }
+        .contingency-table td {
+            padding: 8px;
+            border-bottom: 1px solid #f0f2f5;
+            vertical-align: top;
+        }
+        .contingency-table tr:last-child td { border-bottom: none; }
+
+        /* ===== ALERT BANNER ===== */
+        .alert-banner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+        .alert-banner.info { background: #e8f0fe; color: #1a73e8; }
+        .alert-banner.warning { background: #fef7e0; color: #b06000; }
+        .alert-banner.critical { background: #fce8e6; color: #c5221f; }
+        .alert-banner.success { background: #e6f4ea; color: #1e7e34; }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 600px) {
+            body { padding: 12px; }
+            .vendor-header { flex-direction: column; align-items: flex-start; }
+            .vendor-meta { margin-left: 0; width: 100%; }
+            .kv-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+            .kv-value { text-align: left; max-width: 100%; }
+        }
+
+        /* ===== ACCESSIBILITY ===== */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            border: 0;
+        }
+        button, a { transition: opacity 0.1s ease; }
+        button:focus-visible, a:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+        /* ===== PRINT ===== */
+        @media print {
+            body { background: white; padding: 0; }
+            .card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
+            .vendor-header { box-shadow: none; border: 1px solid #ddd; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ===== HEADER ===== -->
+        <header class="vendor-header" role="banner">
+            <h1>
+                <span aria-hidden="true">🏢</span>
+                Plaid
+                <span class="vendor-badge">MVP</span>
+            </h1>
+            <div class="vendor-meta">
+                <span>
+                    <span class="status-dot active" aria-hidden="true"></span>
+                    Contract: <strong>Active</strong>
+                </span>
+                <span>
+                    <span class="status-dot active" aria-hidden="true"></span>
+                    API: <strong>Provisioned</strong>
+                </span>
+                <span>
+                    <span class="status-dot warning" aria-hidden="true"></span>
+                    Budget: <strong>72% used</strong>
+                </span>
+                <span>
+                    Renewal: <strong>2026-03-15</strong>
+                </span>
+            </div>
+        </header>
+
+        <!-- ===== ALERT BANNER (example) ===== -->
+        <div class="alert-banner info" role="alert">
+            <span aria-hidden="true">ℹ️</span>
+            <span>Sandbox environment verified and operational. Last tested: 2025-01-20.</span>
+        </div>
+
+        <!-- ===== DETAIL GRID ===== -->
+        <div class="detail-grid" role="main">
+
+            <!-- CARD: Contract & MSA -->
+            <article class="card" aria-label="Contract and MSA status">
+                <div class="card-title">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v2H4V4zm0 4h16v2H4V8zm0 4h16v2H4v-2zm0 4h10v2H4v-2z"/></svg>
+                    Contract &amp; MSA
+                </div>
+                <div class="kv-row">
+                    <span class="kv-label">Status</span>
+                    <span class="kv-value"><span class="status-tag green"><span class="dot"></span>Signed</span></span>
+                </div>
+                <div class="kv-row">
+                    <span class="kv-label">MSA Version</span>
+                    <span class="kv-value mono">v2.4.1</span>
+                </div>
+                <div class="kv-row">
+                    <span class="kv-label">Signed Date</span>
+                    <span class="kv-value">2024-11-01</span>
+                </div>
+                <div class="kv-row">
+                    <span class="kv-label">Renewal</span>
+                    <span class="kv-value">2026-03-15 <span class="badge">auto-renew</span></span>
+                </div>
+                <div class="kv-row">
+                    <span class="kv-label">SLA</span>
+                    <span class="kv-value">99.9% uptime</span>
+                </div>
+                <div class="kv-row">
+                    <span class="kv-label">Support Tier</span>
+                    <span class="kv-value">Enterprise (24/7)</span>
+                </div>
+            </article>
+
+            <!-- CARD: API Credentials -->
+            <article class="card" aria-label="API credentials and secrets management">
+                <div class="card-title">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7zM9 16v-1h6v1H9zm3-10c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z"/></svg>
+                    API Credentials
+                </div>
+                <div class="kv-row">
+                    <span class="kv-label">Secrets Manager</span>
+                    <span class="kv-value mono">aws:secrets:plaid-prod</span>
+                </div>
+                <div class="kv-row">
+                    <span class="kv-label">Client ID</span>
+                    <span class="kv-value mono">plaid_live_••••••••</span>
+                </div>
+                <div class="kv-row">
+                    <span class="kv-label">Last Rotation</span>
+                    <span class="kv-value">2025-01-10</span>
+                </div>
+                <div class="kv-row">
+                    <span class="kv-label">Rotation Policy</span>
+                    <span class="kv-value">90 days</span>
+                </div>
+                <div class="kv-row">
+                    <span class="kv-label">Sandbox Key</span>
+                    <span class="kv-value mono">plaid_sandbox_••••••</span>
+                </div>
+            </article>
+
+            <!-- CARD: Environment Config -->
+            <article class="card" aria-label="Sandbox and production environment configuration">
+                <div class="
