@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="display:none">
+  <defs>
+    <!-- Shared definitions for status indicators -->
+    <style>
+      .icon-bg { fill: #f8f9fa; }
+      .icon-stroke { fill: none; stroke: #5f6368; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .icon-success { stroke: #0f9d58; }
+      .icon-warning { stroke: #f4b400; }
+      .icon-danger { stroke: #ea4335; }
+      .icon-primary { stroke: #1a73e8; }
+      .icon-neutral { stroke: #5f6368; }
+      .icon-fill-success { fill: #0f9d58; }
+      .icon-fill-warning { fill: #f4b400; }
+      .icon-fill-danger { fill: #ea4335; }
+      .icon-fill-primary { fill: #1a73e8; }
+      .icon-fill-neutral { fill: #5f6368; }
+      .icon-fill-bg { fill: #ffffff; }
+    </style>
+
+    <!-- Contract Signed -->
+    <g id="contract-signed">
+      <rect x="1" y="1" width="22" height="22" rx="4" class="icon-bg"/>
+      <path d="M7 13l3 3 7-7" class="icon-stroke icon-success"/>
+      <rect x="6" y="6" width="12" height="12" rx="2" class="icon-stroke icon-success" opacity="0.3"/>
+    </g>
+
+    <!-- Pending -->
+    <g id="pending">
+      <rect x="1" y="1" width="22" height="22" rx="4" class="icon-bg"/>
+      <circle cx="12" cy="12" r="7" class="icon-stroke icon-warning"/>
+      <path d="M12 8v4l3 2" class="icon-stroke icon-warning"/>
+      <circle cx="12" cy="12" r="2" class="icon-fill-warning"/>
+    </g>
+
+    <!-- Expired -->
+    <g id="expired">
+      <rect x="1" y="1" width="22" height="22" rx="4" class="icon-bg"/>
+      <circle cx="12" cy="12" r="7" class="icon-stroke icon-danger"/>
+      <path d="M8 8l8 8M16 8l-8 8" class="icon-stroke icon-danger"/>
+    </g>
+
+    <!-- Credentials Provisioned -->
+    <g id="credentials-provisioned">
+      <rect x="1" y="1" width="22" height="22" rx="4" class="icon-bg"/>
+      <rect x="7" y="10" width="10" height="8" rx="1" class="icon-stroke icon-primary"/>
+      <path d="M9 10V8a3 3 0 016 0v2" class="icon-stroke icon-primary"/>
+      <circle cx="12" cy="14" r="1.5" class="icon-fill-primary"/>
+      <path d="M12 14v2" class="icon-stroke icon-primary"/>
+    </g>
+
+    <!-- Sandbox Active -->
+    <g id="sandbox-active">
+      <rect x="1" y="1" width="22" height="22" rx="4" class="icon-bg"/>
+      <rect x="5" y="5" width="14" height="14" rx="2" class="icon-stroke icon-warning"/>
+      <path d="M5 9h14" class="icon-stroke icon-warning"/>
+      <rect x="8" y="11" width="8" height="5" rx="1" class="icon-stroke icon-warning"/>
+      <path d="M12 11v5" class="icon-stroke icon-warning"/>
+      <circle cx="12" cy="13.5" r="1" class="icon-fill-warning"/>
+    </g>
+
+    <!-- Production Active -->
+    <g id="production-active">
+      <rect x="1" y="1" width="22" height="22" rx="4" class="icon-bg"/>
+      <rect x="5" y="5" width="14" height="14" rx="2" class="icon-stroke icon-success"/>
+      <path d="M5 9h14" class="icon-stroke icon-success"/>
+      <circle cx="12" cy="14" r="3" class="icon-stroke icon-success"/>
+      <circle cx="12" cy="14" r="1.5" class="icon-fill-success"/>
+    </g>
+
+    <!-- Monitoring Configured -->
+    <g id="monitoring-configured">
+      <rect x="1" y="1" width="22" height="22" rx="4" class="icon-bg"/>
+      <path d="M4 18l4-5 3 2 5-6 4 4" class="icon-stroke icon-primary"/>
+      <circle cx="18" cy="7" r="2" class="icon-stroke icon-primary"/>
+      <circle cx="18" cy="7" r="1" class="icon-fill-primary"/>
+      <path d="M4 18h16" class="icon-stroke icon-primary"/>
+    </g>
+
+    <!-- Fallback Defined -->
+    <g id="fallback-defined">
+      <rect x="1" y="1" width="22" height="22" rx="4" class="icon-bg"/>
+      <path d="M6 18L18 6" class="icon-stroke icon-neutral"/>
+      <path d="M10 6h8v8" class="icon-stroke icon-neutral"/>
+      <path d="M14 18H6v-8" class="icon-stroke icon-neutral"/>
+      <circle cx="12" cy="12" r="1.5" class="icon-fill-neutral"/>
+    </g>
+
+    <!-- Checkmark (for use in matrix cells) -->
+    <g id="checkmark">
+      <path d="M4 12l4 4 8-8" class="icon-stroke icon-success"/>
+    </g>
+
+    <!-- Cross (for use in matrix cells) -->
+    <g id="cross">
+      <path d="M6 6l12 12M18 6l-12 12" class="icon-stroke icon-danger"/>
+    </g>
+
+    <!-- Warning Triangle -->
+    <g id="warning-triangle">
+      <path d="M12 4L3 20h18z" class="icon-stroke icon-warning"/>
+      <path d="M12 10v4" class="icon-stroke icon-warning"/>
+      <circle cx="12" cy="17" r="0.5" class="icon-fill-warning"/>
+    </g>
+
+    <!-- Info Circle -->
+    <g id="info-circle">
+      <circle cx="12" cy="12" r="8" class="icon-stroke icon-primary"/>
+      <path d="M12 11v5" class="icon-stroke icon-primary"/>
+      <circle cx="12" cy="8.5" r="0.5" class="icon-fill-primary"/>
+    </g>
+  </defs>
+</svg>
