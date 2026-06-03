@@ -1,0 +1,489 @@
+# =============================================================================
+# DAST Scan Workflow - OWASP ZAP
+# Owner: platform
+# Depends on: #1345, #1357
+# Spec: §10.4 - Application Security Practice Stack
+# Maturity Target: Foundation
+# Acceptance Criteria: (3) OWASP ZAP scheduled scan against staging environment;
+#   weekly run; results published to security dashboard.
+# =============================================================================
+
+name: DAST Scan - OWASP ZAP
+
+on:
+  schedule:
+    # Weekly scan every Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Target URL for ad-hoc scan (defaults to staging)'
+        required: false
+        default: 'https://staging.example.com'
+        type: string
+      scan_type:
+        description: 'Scan type: baseline, full, or api'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - baseline
+          - full
+          - api
+
+env:
+  ZAP_VERSION: '2.15.0'
+  STAGING_URL: 'https://staging.example.com'
+  ASVS_LEVEL: 'L2'
+  COMPLIANCE_SVC_PATH: '/compliance'
+  CREDIT_SVC_PATH: '/credit'
+  SECURITY_DASHBOARD_BUCKET: 'security-dashboard-reports'
+  AWS_REGION: 'us-east-1'
+  PYTHON_VERSION: '3.11'
+  MAX_RETRIES: 3
+  RETRY_DELAY_SECONDS: 5
+
+jobs:
+  dast-scan:
+    name: OWASP ZAP DAST Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml requests
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: dast-scan-github-actions
+          mask-aws-account-id: true
+
+      - name: Validate inputs
+        id: validate
+        run: |
+          python3 << 'PYTHON_SCRIPT'
+          import os
+          import sys
+          import re
+          import logging
+          from typing import List, Tuple
+
+          # Configure logging
+          logging.basicConfig(
+              level=logging.INFO,
+              format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+          )
+          logger = logging.getLogger(__name__)
+
+          class ValidationError(Exception):
+              """Custom exception for validation failures."""
+              pass
+
+          class URLValidator:
+              """Validator for URL inputs."""
+
+              URL_PATTERN = re.compile(
+                  r'^https://[a-zA-Z0-9][-a-zA-Z0-9.]*\.[a-zA-Z]{2,}(:[0-9]{1,5})?(/.*)?$'
+              )
+              BLOCKED_HOSTS = {'localhost', '127.0.0.1', '0.0.0.0', '::1'}
+
+              @classmethod
+              def validate(cls, url: str) -> Tuple[bool, str]:
+                  """
+                  Validate URL format and security.
+
+                  Args:
+                      url: The URL to validate
+
+                  Returns:
+                      Tuple of (is_valid, error_message)
+                  """
+                  try:
+                      if not url or not isinstance(url, str):
+                          return False, "URL must be a non-empty string"
+
+                      if not cls.URL_PATTERN.match(url):
+                          return False, f"Invalid URL format: {url}"
+
+                      # Extract hostname for security checks
+                      hostname = url.split('/')[2] if '://' in url else url.split('/')[0]
+                      hostname = hostname.split(':')[0].lower()
+
+                      if hostname in cls.BLOCKED_HOSTS:
+                          return False, f"Localhost URLs not allowed: {url}"
+
+                      # Additional security checks
+                      if ' ' in url or url.count('://') > 1:
+                          return False, f"URL contains invalid characters or format: {url}"
+
+                      return True, ""
+
+                  except Exception as e:
+                      logger.error(f"URL validation error: {e}")
+                      return False, f"URL validation failed: {str(e)}"
+
+          class ScanTypeValidator:
+              """Validator for scan type inputs."""
+
+              VALID_TYPES = {'baseline', 'full', 'api'}
+
+              @classmethod
+              def validate(cls, scan_type: str) -> Tuple[bool, str]:
+                  """
+                  Validate scan type.
+
+                  Args:
+                      scan_type: The scan type to validate
+
+                  Returns:
+                      Tuple of (is_valid, error_message)
+                  """
+                  try:
+                      if not scan_type or not isinstance(scan_type, str):
+                          return False, "Scan type must be a non-empty string"
+
+                      if scan_type not in cls.VALID_TYPES:
+                          return False, f"Invalid scan type: {scan_type}. Must be one of: {', '.join(sorted(cls.VALID_TYPES))}"
+
+                      return True, ""
+
+                  except Exception as e:
+                      logger.error(f"Scan type validation error: {e}")
+                      return False, f"Scan type validation failed: {str(e)}"
+
+          def main() -> None:
+              """Main validation function."""
+              try:
+                  # Get inputs from environment
+                  target_url = os.environ.get('INPUT_TARGET_URL', '')
+                  scan_type = os.environ.get('INPUT_SCAN_TYPE', '')
+
+                  if not target_url or not scan_type:
+                      logger.error("Missing required inputs")
+                      sys.exit(1)
+
+                  logger.info(f"Validating target URL: {target_url}")
+                  url_valid, url_error = URLValidator.validate(target_url)
+                  if not url_valid:
+                      logger.error(f"URL validation failed: {url_error}")
+                      sys.exit(1)
+
+                  logger.info(f"Validating scan type: {scan_type}")
+                  type_valid, type_error = ScanTypeValidator.validate(scan_type)
+                  if not type_valid:
+                      logger.error(f"Scan type validation failed: {type_error}")
+                      sys.exit(1)
+
+                  logger.info("All inputs validated successfully")
+                  print("VALIDATION_PASSED=true")
+
+              except Exception as e:
+                  logger.error(f"Validation process failed: {e}")
+                  sys.exit(1)
+
+          if __name__ == '__main__':
+              main()
+          PYTHON_SCRIPT
+        env:
+          INPUT_TARGET_URL: ${{ steps.target.outputs.url }}
+          INPUT_SCAN_TYPE: ${{ steps.target.outputs.scan_type }}
+
+      - name: Determine target URL
+        id: target
+        run: |
+          set -euo pipefail
+          
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "url=${{ github.event.inputs.target_url }}" >> $GITHUB_OUTPUT
+            echo "scan_type=${{ github.event.inputs.scan_type }}" >> $GITHUB_OUTPUT
+          else
+            echo "url=${{ env.STAGING_URL }}" >> $GITHUB_OUTPUT
+            echo "scan_type=full" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "Target URL: ${{ steps.target.outputs.url }}"
+          echo "Scan type: ${{ steps.target.outputs.scan_type }}"
+
+      - name: Run OWASP ZAP Baseline Scan
+        if: steps.target.outputs.scan_type == 'baseline'
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: ${{ steps.target.outputs.url }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-I -T 60 -j -l WARN'
+          allow_issue_writing: false
+          artifact_name: 'zap-baseline-report'
+
+      - name: Run OWASP ZAP Full Scan
+        if: steps.target.outputs.scan_type == 'full'
+        uses: zaproxy/action-full-scan@v0.12.0
+        with:
+          target: ${{ steps.target.outputs.url }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: >
+            -I
+            -T 120
+            -j
+            -l WARN
+            -c .zap/context.context
+            -u .zap/users.json
+            -r zap-full-report.html
+            -w zap-full-report.md
+            -x zap-full-report.xml
+            -J zap-full-report.json
+          allow_issue_writing: false
+          artifact_name: 'zap-full-report'
+
+      - name: Run OWASP ZAP API Scan
+        if: steps.target.outputs.scan_type == 'api'
+        uses: zaproxy/action-api-scan@v0.12.0
+        with:
+          target: ${{ steps.target.outputs.url }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          format: 'openapi'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: >
+            -I
+            -T 60
+            -j
+            -l WARN
+            -r zap-api-report.html
+            -w zap-api-report.md
+          allow_issue_writing: false
+          artifact_name: 'zap-api-report'
+
+      - name: Upload ZAP Reports to Security Dashboard
+        if: always()
+        run: |
+          set -euo pipefail
+          
+          # Configuration
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          SCAN_TYPE="${{ steps.target.outputs.scan_type }}"
+          REPORT_DIR="zap-reports/${TIMESTAMP}/${SCAN_TYPE}"
+          MAX_RETRIES=${{ env.MAX_RETRIES }}
+          RETRY_DELAY=${{ env.RETRY_DELAY_SECONDS }}
+
+          # Logging function
+          log_info() {
+            echo "[INFO] $(date -u +"%Y-%m-%dT%H:%M:%SZ") - $1"
+          }
+
+          log_error() {
+            echo "[ERROR] $(date -u +"%Y-%m-%dT%H:%M:%SZ") - $1" >&2
+          }
+
+          log_warning() {
+            echo "[WARN] $(date -u +"%Y-%m-%dT%H:%M:%SZ") - $1"
+          }
+
+          # Function to copy reports with error handling
+          copy_reports() {
+            local source_dir="$1"
+            local dest_dir="$2"
+            
+            if [ ! -d "$source_dir" ]; then
+              log_warning "Source directory does not exist: $source_dir"
+              return 1
+            fi
+
+            if [ -z "$(ls -A "$source_dir" 2>/dev/null)" ]; then
+              log_warning "Source directory is empty: $source_dir"
+              return 1
+            fi
+
+            mkdir -p "$dest_dir"
+            if cp -r "$source_dir"/* "$dest_dir/"; then
+              log_info "Successfully copied reports from $source_dir to $dest_dir"
+              return 0
+            else
+              log_error "Failed to copy reports from $source_dir"
+              return 1
+            fi
+          }
+
+          # Function to upload to S3 with retry logic
+          upload_to_s3() {
+            local source="$1"
+            local destination="$2"
+            local attempt=1
+
+            while [ $attempt -le $MAX_RETRIES ]; do
+              log_info "Upload attempt $attempt of $MAX_RETRIES"
+              
+              if aws s3 sync "$source" \
+                "$destination" \
+                --content-type "text/html" \
+                --cache-control "no-cache" \
+                --only-show-errors; then
+                log_info "Successfully uploaded reports to S3"
+                return 0
+              else
+                log_error "Upload attempt $attempt failed"
+                if [ $attempt -lt $MAX_RETRIES ]; then
+                  log_info "Retrying in $RETRY_DELAY seconds..."
+                  sleep $RETRY_DELAY
+                fi
+                attempt=$((attempt + 1))
+              fi
+            done
+
+            log_error "All upload attempts failed"
+            return 1
+          }
+
+          # Main execution
+          log_info "Starting report upload process"
+          log_info "Timestamp: $TIMESTAMP"
+          log_info "Scan type: $SCAN_TYPE"
+          log_info "Report directory: $REPORT_DIR"
+
+          # Create report directory
+          mkdir -p "${REPORT_DIR}"
+
+          # Copy reports based on scan type
+          COPY_SUCCESS=false
+          case "$SCAN_TYPE" in
+            full)
+              if copy_reports "zap-full-report" "${REPORT_DIR}"; then
+                COPY_SUCCESS=true
+              fi
+              ;;
+            baseline)
+              if copy_reports "zap-baseline-report" "${REPORT_DIR}"; then
+                COPY_SUCCESS=true
+              fi
+              ;;
+            api)
+              if copy_reports "zap-api-report" "${REPORT_DIR}"; then
+                COPY_SUCCESS=true
+              fi
+              ;;
+            *)
+              log_error "Unknown scan type: $SCAN_TYPE"
+              exit 1
+              ;;
+          esac
+
+          if [ "$COPY_SUCCESS" = false ]; then
+            log_warning "No reports to upload"
+            exit 0
+          fi
+
+          # Upload to S3
+          S3_DESTINATION="s3://${SECURITY_DASHBOARD_BUCKET}/${REPORT_DIR}"
+          if upload_to_s3 "${REPORT_DIR}" "${S3_DESTINATION}"; then
+            log_info "Reports uploaded successfully"
+          else
+            log_error "Failed to upload reports after $MAX_RETRIES attempts"
+            exit 1
+          fi
+
+          # Generate index file for latest scan
+          cat > latest-scan.json << EOF
+          {
+            "timestamp": "${TIMESTAMP}",
+            "scan_type": "${SCAN_TYPE}",
+            "target": "${{ steps.target.outputs.url }}",
+            "status": "${{ job.status }}",
+            "repository": "${{ github.repository }}",
+            "run_id": "${{ github.run_id }}",
+            "workflow": "${{ github.workflow }}",
+            "environment": "staging",
+            "asvs_level": "${{ env.ASVS_LEVEL }}",
+            "compliance_paths": [
+              "${{ env.COMPLIANCE_SVC_PATH }}",
+              "${{ env.CREDIT_SVC_PATH }}"
+            ]
+          }
+          EOF
+
+          # Upload index file
+          if aws s3 cp latest-scan.json \
+            "s3://${SECURITY_DASHBOARD_BUCKET}/latest-scan.json" \
+            --content-type "application/json" \
+            --cache-control "no-cache" \
+            --only-show-errors; then
+            log_info "Index file uploaded successfully"
+          else
+            log_error "Failed to upload index file"
+            exit 1
+          fi
+
+          log_info "Report upload process completed successfully"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          set -euo pipefail
+          
+          log_error() {
+            echo "[ERROR] $(date -u +"%Y-%m-%dT%H:%M:%SZ") - $1" >&2
+          }
+
+          log_error "DAST scan workflow failed"
+          log_error "Repository: ${{ github.repository }}"
+          log_error "Run ID: ${{ github.run_id }}"
+          log_error "Target URL: ${{ steps.target.outputs.url }}"
+          log_error "Scan type: ${{ steps.target.outputs.scan_type }}"
+          
+          # Create failure notification
+          cat > failure-notification.json << EOF
+          {
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "workflow": "${{ github.workflow }}",
+            "repository": "${{ github.repository }}",
+            "run_id": "${{ github.run_id }}",
+            "status": "failed",
+            "target_url": "${{ steps.target.outputs.url }}",
+            "scan_type": "${{ steps.target.outputs.scan_type }}",
+            "error": "DAST scan workflow failed"
+          }
+          EOF
+
+          # Upload failure notification
+          if aws s3 cp failure-notification.json \
+            "s3://${SECURITY_DASHBOARD_BUCKET}/failures/${{ github.run_id }}.json" \
+            --content-type "application/json" \
+            --cache-control "no-cache" \
+            --only-show-errors; then
+            log_info "Failure notification uploaded"
+          else
+            log_error "Failed to upload failure notification"
+          fi
+
+      - name: Cleanup temporary files
+        if: always()
+        run: |
+          set -euo pipefail
+          
+          log_info() {
+            echo "[INFO] $(date -u +"%Y-%m-%dT%H:%M:%SZ") - $1"
+          }
+
+          # Clean up temporary files
+          rm -rf zap-reports latest-scan.json failure-notification.json
+          log_info "Temporary files cleaned up"
