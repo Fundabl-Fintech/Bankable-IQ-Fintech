@@ -1,0 +1,418 @@
+# =============================================================================
+# SAST Pipeline - Semgrep & CodeQL
+# Owner: platform
+# Depends on: [1345, 1357]
+# Blocks: []
+# Spec: §10.4 - Application Security Practice Stack
+# Maturity Target: foundation
+# =============================================================================
+# Acceptance Criteria:
+# (1) OWASP ASVS Level 2 baseline implemented; Level 3 for compliance-svc & credit-svc
+# (2) SAST: Semgrep + CodeQL on every PR; zero high/critical findings allowed to merge
+# (3) DAST: OWASP ZAP weekly against staging
+# (4) SCA: Snyk + Dependabot; high/critical CVEs block merge after 7-day grace
+# (5) Secret scanning: GitGuardian + GitHub native; push protection enabled
+# (6) Penetration testing: annual third-party; findings in GitHub Security Advisories
+# (7) Bug bounty: HackerOne/Bugcrowd in Phase 3
+# =============================================================================
+
+name: "SAST - Semgrep & CodeQL"
+
+on:
+  pull_request:
+    branches: [main, develop, release/**]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".github/**"
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  schedule:
+    - cron: "0 6 * * 1" # Weekly: Monday 06:00 UTC
+
+env:
+  SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+  CODEQL_LANGUAGES: "javascript,typescript,python,java,kotlin,go"
+  NODE_VERSION: "20"
+  JAVA_VERSION: "17"
+  SEMGREP_TIMEOUT: 120
+  SEMGREP_JOBS: 4
+  SEMGREP_MAX_LINES_PER_FINDING: 50
+  SEMGREP_CONFIG: >-
+    --config=auto
+    --config=p/owasp-top-ten
+    --config=p/security-audit
+    --config=p/command-injection
+    --config=p/r2c-ci
+    --config=p/expressjs
+    --config=p/react
+    --config=p/angular
+    --config=p/vue
+    --config=p/django
+    --config=p/flask
+    --config=p/spring
+    --config=p/kubernetes
+    --config=p/docker
+    --config=p/terraform
+    --config=p/aws
+    --config=p/gcp
+    --config=p/azure
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # JOB 1: Semgrep SAST Scan
+  # ---------------------------------------------------------------------------
+  semgrep-sast:
+    name: "Semgrep SAST"
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep:latest
+      options: --user root
+    timeout-minutes: 30
+    outputs:
+      findings_count: ${{ steps.semgrep.outputs.findings_count }}
+      critical_findings: ${{ steps.semgrep.outputs.critical_findings }}
+      high_findings: ${{ steps.semgrep.outputs.high_findings }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate Semgrep token
+        id: validate-token
+        run: |
+          if [[ -z "${{ secrets.SEMGREP_APP_TOKEN }}" ]]; then
+            echo "::error::SEMGREP_APP_TOKEN is not configured. SAST scanning cannot proceed."
+            exit 1
+          fi
+          echo "token_validated=true" >> $GITHUB_OUTPUT
+
+      - name: Run Semgrep SAST Scan
+        id: semgrep
+        continue-on-error: false
+        run: |
+          # Build exclusion patterns
+          EXCLUDE_PATTERNS=(
+            "**/node_modules/**"
+            "**/vendor/**"
+            "**/dist/**"
+            "**/build/**"
+            "**/.semgrep/**"
+            "tests/**"
+            "test/**"
+            "spec/**"
+            "docs/**"
+            "*.min.*"
+            "*.bundle.*"
+            "*.generated.*"
+            "*.pb.*"
+            "*_test.go"
+            "*_spec.rb"
+            "**/__tests__/**"
+            "**/__mocks__/**"
+            "**/__snapshots__/**"
+            "**/coverage/**"
+            "**/.next/**"
+            "**/.nuxt/**"
+            "**/.output/**"
+            "**/.cache/**"
+            "**/tmp/**"
+            "**/temp/**"
+            "**/logs/**"
+            "**/data/**"
+            "**/uploads/**"
+            "**/public/assets/**"
+            "**/static/assets/**"
+            "**/third_party/**"
+            "**/third-party/**"
+            "**/lib/**"
+            "**/libs/**"
+            "**/packages/**/node_modules/**"
+            "**/packages/**/dist/**"
+            "**/packages/**/build/**"
+            "**/packages/**/lib/**"
+            "**/packages/**/coverage/**"
+            "**/packages/**/__tests__/**"
+            "**/packages/**/test/**"
+            "**/packages/**/tests/**"
+            "**/packages/**/spec/**"
+            "**/packages/**/docs/**"
+            "**/packages/**/examples/**"
+            "**/packages/**/benchmarks/**"
+            "**/packages/**/benchmark/**"
+            "**/packages/**/perf/**"
+            "**/packages/**/performance/**"
+            "**/packages/**/scripts/**"
+            "**/packages/**/config/**"
+            "**/packages/**/configuration/**"
+            "**/packages/**/docker/**"
+            "**/packages/**/infra/**"
+            "**/packages/**/deploy/**"
+            "**/packages/**/deployment/**"
+            "**/packages/**/ci/**"
+            "**/packages/**/cd/**"
+            "**/packages/**/pipeline/**"
+            "**/packages/**/pipelines/**"
+            "**/packages/**/workflows/**"
+            "**/packages/**/actions/**"
+            "**/packages/**/github/**"
+            "**/packages/**/gitlab/**"
+            "**/packages/**/bitbucket/**"
+            "**/packages/**/azure/**"
+            "**/packages/**/gcp/**"
+            "**/packages/**/aws/**"
+            "**/packages/**/cloud/**"
+            "**/packages/**/k8s/**"
+            "**/packages/**/kubernetes/**"
+            "**/packages/**/helm/**"
+            "**/packages/**/terraform/**"
+            "**/packages/**/pulumi/**"
+            "**/packages/**/ansible/**"
+            "**/packages/**/chef/**"
+            "**/packages/**/puppet/**"
+            "**/packages/**/salt/**"
+            "**/packages/**/nix/**"
+            "**/packages/**/homebrew/**"
+            "**/packages/**/chocolatey/**"
+            "**/packages/**/scoop/**"
+            "**/packages/**/winget/**"
+            "**/packages/**/apt/**"
+            "**/packages/**/yum/**"
+            "**/packages/**/dnf/**"
+            "**/packages/**/zypper/**"
+            "**/packages/**/pacman/**"
+            "**/packages/**/apk/**"
+            "**/packages/**/portage/**"
+            "**/packages/**/emerge/**"
+            "**/packages/**/guix/**"
+            "**/packages/**/spack/**"
+            "**/packages/**/conda/**"
+            "**/packages/**/pip/**"
+            "**/packages/**/pipenv/**"
+            "**/packages/**/poetry/**"
+            "**/packages/**/npm/**"
+            "**/packages/**/yarn/**"
+            "**/packages/**/pnpm/**"
+            "**/packages/**/bun/**"
+            "**/packages/**/cargo/**"
+            "**/packages/**/go/**"
+            "**/packages/**/gradle/**"
+            "**/packages/**/maven/**"
+            "**/packages/**/sbt/**"
+            "**/packages/**/leiningen/**"
+          )
+
+          # Build exclude arguments
+          EXCLUDE_ARGS=()
+          for pattern in "${EXCLUDE_PATTERNS[@]}"; do
+            EXCLUDE_ARGS+=("--exclude=$pattern")
+          done
+
+          # Run Semgrep with comprehensive configuration
+          semgrep ci \
+            ${{ env.SEMGREP_CONFIG }} \
+            --metrics=off \
+            --json \
+            --output=semgrep-results.json \
+            --error \
+            --strict \
+            --max-lines-per-finding=${{ env.SEMGREP_MAX_LINES_PER_FINDING }} \
+            --timeout=${{ env.SEMGREP_TIMEOUT }} \
+            --jobs=${{ env.SEMGREP_JOBS }} \
+            --severity=ERROR,WARNING \
+            --include="**/*.js" \
+            --include="**/*.ts" \
+            --include="**/*.py" \
+            --include="**/*.java" \
+            --include="**/*.kt" \
+            --include="**/*.kts" \
+            --include="**/*.go" \
+            --include="**/*.rb" \
+            --include="**/*.php" \
+            --include="**/*.swift" \
+            --include="**/*.scala" \
+            --include="**/*.rs" \
+            --include="**/*.c" \
+            --include="**/*.cpp" \
+            --include="**/*.h" \
+            --include="**/*.hpp" \
+            --include="**/*.cs" \
+            --include="**/*.fs" \
+            --include="**/*.fsx" \
+            --include="**/*.sql" \
+            --include="**/*.yaml" \
+            --include="**/*.yml" \
+            --include="**/*.json" \
+            --include="**/*.xml" \
+            --include="**/*.config.js" \
+            --include="**/*.config.ts" \
+            --include="**/Dockerfile" \
+            --include="**/docker-compose*.yml" \
+            --include="**/docker-compose*.yaml" \
+            --include="**/*.tf" \
+            --include="**/*.tfvars" \
+            --include="**/*.hcl" \
+            --include="**/*.nomad" \
+            --include="**/*.pkr.hcl" \
+            --include="**/*.pkr.json" \
+            --include="**/*.bicep" \
+            --include="**/*.arm" \
+            --include="**/*.cdk.json" \
+            --include="**/*.cdk.ts" \
+            --include="**/*.cdk.py" \
+            --include="**/*.cdk.java" \
+            --include="**/*.cdk.go" \
+            --include="**/*.cdk.rb" \
+            --include="**/*.cdk.cs" \
+            --include="**/*.cdk.fs" \
+            --include="**/*.cdk.fsx" \
+            --include="**/*.cdk.scala" \
+            --include="**/*.cdk.kt" \
+            --include="**/*.cdk.kts" \
+            --include="**/*.cdk.swift" \
+            --include="**/*.cdk.rs" \
+            --include="**/*.cdk.c" \
+            --include="**/*.cdk.cpp" \
+            --include="**/*.cdk.h" \
+            --include="**/*.cdk.hpp" \
+            --include="**/*.cdk.sql" \
+            --include="**/*.cdk.yaml" \
+            --include="**/*.cdk.yml" \
+            --include="**/*.cdk.json" \
+            --include="**/*.cdk.xml" \
+            --include="**/*.cdk.config.js" \
+            --include="**/*.cdk.config.ts" \
+            "${EXCLUDE_ARGS[@]}"
+
+      - name: Parse and validate Semgrep results
+        id: parse-results
+        run: |
+          if [[ ! -f semgrep-results.json ]]; then
+            echo "::error::Semgrep results file not found"
+            exit 1
+          fi
+
+          # Parse results using jq
+          TOTAL_FINDINGS=$(jq '.results | length' semgrep-results.json)
+          CRITICAL_FINDINGS=$(jq '[.results[] | select(.extra.severity == "ERROR" and .extra.metadata.cwe != null)] | length' semgrep-results.json)
+          HIGH_FINDINGS=$(jq '[.results[] | select(.extra.severity == "WARNING" and .extra.metadata.cwe != null)] | length' semgrep-results.json)
+
+          echo "findings_count=$TOTAL_FINDINGS" >> $GITHUB_OUTPUT
+          echo "critical_findings=$CRITICAL_FINDINGS" >> $GITHUB_OUTPUT
+          echo "high_findings=$HIGH_FINDINGS" >> $GITHUB_OUTPUT
+
+          # Log findings summary
+          echo "::notice::Semgrep scan completed: $TOTAL_FINDINGS total findings ($CRITICAL_FINDINGS critical, $HIGH_FINDINGS high)"
+
+          # Fail if any critical or high findings exist
+          if [[ $CRITICAL_FINDINGS -gt 0 ]] || [[ $HIGH_FINDINGS -gt 0 ]]; then
+            echo "::error::Critical ($CRITICAL_FINDINGS) or High ($HIGH_FINDINGS) findings detected. Blocking merge."
+            exit 1
+          fi
+
+      - name: Upload Semgrep results artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: semgrep-results
+          path: semgrep-results.json
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # JOB 2: CodeQL Analysis
+  # ---------------------------------------------------------------------------
+  codeql-analysis:
+    name: "CodeQL Analysis"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript, typescript, python, java, kotlin, go]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+          config-file: .github/codeql/codeql-config.yml
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+          output: codeql-results
+          upload: true
+
+      - name: Upload CodeQL results artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: codeql-results-${{ matrix.language }}
+          path: codeql-results
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # JOB 3: Results Aggregation and Notification
+  # ---------------------------------------------------------------------------
+  aggregate-results:
+    name: "Aggregate SAST Results"
+    needs: [semgrep-sast, codeql-analysis]
+    runs-on: ubuntu-latest
+    if: always()
+    timeout-minutes: 10
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate summary report
+        id: summary
+        run: |
+          echo "## SAST Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Semgrep Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Total Findings: ${{ needs.semgrep-sast.outputs.findings_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Critical Findings: ${{ needs.semgrep-sast.outputs.critical_findings }}" >> $GITHUB_STEP_SUMMARY
+          echo "- High Findings: ${{ needs.semgrep-sast.outputs.high_findings }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### CodeQL Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Languages analyzed: ${{ join(matrix.language, ', ') }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Overall Status" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.semgrep-sast.result }}" == "success" ]] && [[ "${{ needs.codeql-analysis.result }}" == "success" ]]; then
+            echo "✅ All SAST checks passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ SAST checks failed" >> $
