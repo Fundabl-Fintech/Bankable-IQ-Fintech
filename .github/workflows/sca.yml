@@ -1,0 +1,499 @@
+# .github/workflows/sca.yml
+# Owner: platform
+# Depends on: [1345, 1357]
+# Blocks: []
+# Spec sections: [§10.4]
+# Maturity target: foundation
+#
+# Acceptance criteria:
+# (4) SCA: Snyk and Dependabot configured for all repos; high/critical CVEs block merge after 7-day grace period.
+# (1) OWASP ASVS Level 2 baseline implemented; Level 3 for compliance-svc and credit-svc paths.
+# (2) SAST: Semgrep rules and GitHub CodeQL configured and running on every PR; zero high/critical findings allowed to merge.
+# (5) Secret scanning: GitGuardian configured; GitHub native secret scanning enabled; push protection on.
+#
+# Canonical source: docs/spec/engineering-spec-v1.0.html §10.4
+
+name: SCA - Software Composition Analysis
+
+on:
+  pull_request:
+    branches: [main, develop, 'release/**']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday at 6:00 UTC
+  workflow_dispatch:
+
+env:
+  SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
+  GO_VERSION: '1.22'
+  GRACE_PERIOD_DAYS: '7'
+  LOG_LEVEL: 'INFO'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ============================================================
+  # JOB: Dependabot Configuration Check
+  # ============================================================
+  dependabot-config:
+    name: Dependabot Configuration
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    outputs:
+      config_exists: ${{ steps.check-config.outputs.exists }}
+    steps:
+      - name: Checkout repository
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Validate dependabot configuration
+        id: check-config
+        run: |
+          set -euo pipefail
+          if [ -f .github/dependabot.yml ]; then
+            echo "Dependabot configuration found."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            cat .github/dependabot.yml
+          else
+            echo "WARNING: .github/dependabot.yml not found. Creating default configuration."
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            mkdir -p .github
+            cat > .github/dependabot.yml << 'EOF'
+            version: 2
+            updates:
+              - package-ecosystem: "npm"
+                directory: "/"
+                schedule:
+                  interval: "weekly"
+                  day: "monday"
+                  time: "09:00"
+                  timezone: "America/New_York"
+                open-pull-requests-limit: 10
+                labels:
+                  - "dependencies"
+                  - "security"
+                assignees:
+                  - "platform-team"
+                reviewers:
+                  - "platform-team"
+                target-branch: "develop"
+                allow:
+                  - dependency-type: "direct"
+                ignore:
+                  - dependency-name: "*"
+                    update-types: ["version-update:semver-patch"]
+              - package-ecosystem: "pip"
+                directory: "/"
+                schedule:
+                  interval: "weekly"
+                  day: "monday"
+                  time: "09:00"
+                  timezone: "America/New_York"
+                open-pull-requests-limit: 10
+                labels:
+                  - "dependencies"
+                  - "security"
+              - package-ecosystem: "docker"
+                directory: "/"
+                schedule:
+                  interval: "weekly"
+                  day: "monday"
+                  time: "09:00"
+                  timezone: "America/New_York"
+                open-pull-requests-limit: 5
+                labels:
+                  - "dependencies"
+                  - "security"
+              - package-ecosystem: "github-actions"
+                directory: "/"
+                schedule:
+                  interval: "weekly"
+                  day: "monday"
+                  time: "09:00"
+                  timezone: "America/New_York"
+                open-pull-requests-limit: 5
+                labels:
+                  - "dependencies"
+                  - "security"
+            EOF
+            echo "Default dependabot configuration created."
+          fi
+
+      - name: Upload dependabot config as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependabot-config
+          path: .github/dependabot.yml
+          retention-days: 7
+          if-no-files-found: error
+
+  # ============================================================
+  # JOB: Snyk SCA Scan
+  # ============================================================
+  snyk-scan:
+    name: Snyk SCA Scan
+    runs-on: ubuntu-latest
+    needs: [dependabot-config]
+    if: |
+      always() &&
+      (github.event_name == 'pull_request' ||
+       github.event_name == 'push' ||
+       github.event_name == 'schedule' ||
+       github.event_name == 'workflow_dispatch')
+    outputs:
+      blocking_vulnerabilities: ${{ steps.parse-snyk.outputs.blocking }}
+      vulnerability_count: ${{ steps.parse-snyk.outputs.count }}
+    steps:
+      - name: Checkout repository
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        id: setup-node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Python
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Setup Go
+        id: setup-go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install Snyk CLI
+        id: install-snyk
+        run: |
+          set -euo pipefail
+          echo "::group::Install Snyk CLI"
+          curl -sSL https://static.snyk.io/cli/latest/snyk-linux -o /usr/local/bin/snyk
+          chmod +x /usr/local/bin/snyk
+          snyk --version
+          echo "::endgroup::"
+
+      - name: Authenticate Snyk
+        id: auth-snyk
+        run: |
+          set -euo pipefail
+          echo "::group::Authenticate Snyk"
+          snyk auth "${{ secrets.SNYK_TOKEN }}"
+          echo "::endgroup::"
+
+      - name: Run Snyk SCA Test
+        id: snyk-test
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          echo "::group::Run Snyk SCA Test"
+          snyk test \
+            --all-projects \
+            --severity-threshold=medium \
+            --json \
+            --json-file-output=snyk-results.json \
+            --fail-on=all \
+            --policy-path=.snyk \
+            --exclude=node_modules,venv,.git,.tox,.eggs,__pycache__ \
+            --strict-out-of-sync=false \
+            --detection-depth=6 \
+            || true
+          echo "::endgroup::"
+
+      - name: Parse Snyk Results
+        id: parse-snyk
+        run: |
+          set -euo pipefail
+          echo "::group::Parse Snyk Results"
+          if [ ! -f snyk-results.json ]; then
+            echo "ERROR: No Snyk results file found."
+            echo "blocking=true" >> "$GITHUB_OUTPUT"
+            echo "count=-1" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          python3 << 'PYEOF'
+          import json
+          import sys
+          import os
+          import datetime
+          from datetime import timezone
+          from typing import Dict, List, Optional, Any, Tuple
+          import logging
+
+          # Configure logging
+          logging.basicConfig(
+              level=logging.INFO,
+              format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+          )
+          logger = logging.getLogger(__name__)
+
+
+          def parse_snyk_results(filepath: str) -> Dict[str, Any]:
+              """
+              Parse Snyk JSON results and determine if merge should be blocked.
+
+              Args:
+                  filepath: Path to the Snyk JSON results file.
+
+              Returns:
+                  Dictionary containing blocking status and vulnerability count.
+
+              Raises:
+                  FileNotFoundError: If the results file does not exist.
+                  json.JSONDecodeError: If the results file contains invalid JSON.
+                  ValueError: If the results data is malformed.
+              """
+              try:
+                  with open(filepath, 'r') as f:
+                      data = json.load(f)
+              except FileNotFoundError as e:
+                  logger.error(f"Snyk results file not found: {filepath}")
+                  raise
+              except json.JSONDecodeError as e:
+                  logger.error(f"Invalid JSON in Snyk results file: {e}")
+                  raise
+
+              if not isinstance(data, dict):
+                  raise ValueError("Snyk results must be a JSON object")
+
+              vulnerabilities: List[Dict[str, Any]] = data.get('vulnerabilities', [])
+              if not isinstance(vulnerabilities, list):
+                  raise ValueError("'vulnerabilities' field must be a list")
+
+              # Filter for high/critical vulnerabilities
+              blocking_vulns: List[Dict[str, Any]] = [
+                  v for v in vulnerabilities
+                  if isinstance(v, dict) and v.get('severity') in ('high', 'critical')
+              ]
+
+              # Check grace period
+              grace_period_days: int = int(os.environ.get('GRACE_PERIOD_DAYS', '7'))
+              now: datetime.datetime = datetime.datetime.now(timezone.utc)
+              blocking: bool = False
+
+              for vuln in blocking_vulns:
+                  disclosure_time_str: Optional[str] = vuln.get('disclosureTime')
+                  if disclosure_time_str:
+                      try:
+                          disclosure_time: datetime.datetime = datetime.datetime.fromisoformat(
+                              disclosure_time_str.replace('Z', '+00:00')
+                          )
+                          days_since_disclosure: int = (now - disclosure_time).days
+                          if days_since_disclosure > grace_period_days:
+                              blocking = True
+                              logger.warning(
+                                  f"Blocking vulnerability: {vuln.get('id', 'unknown')} "
+                                  f"({vuln.get('severity', 'unknown')}) - "
+                                  f"{days_since_disclosure} days since disclosure"
+                              )
+                      except (ValueError, TypeError) as e:
+                          logger.error(f"Error parsing disclosure time for {vuln.get('id', 'unknown')}: {e}")
+                          blocking = True
+                  else:
+                      # If no disclosure time, block immediately for high/critical
+                      blocking = True
+                      logger.warning(
+                          f"Blocking vulnerability (no disclosure time): "
+                          f"{vuln.get('id', 'unknown')} ({vuln.get('severity', 'unknown')})"
+                      )
+
+              result: Dict[str, Any] = {
+                  'blocking': str(blocking).lower(),
+                  'count': len(blocking_vulns)
+              }
+
+              logger.info(f"Snyk scan complete: {len(blocking_vulns)} blocking vulnerabilities found")
+              return result
+
+
+          def main() -> None:
+              """
+              Main entry point for parsing Snyk results.
+
+              Reads the Snyk results file, parses it, and outputs blocking status
+              and vulnerability count to GitHub Actions outputs.
+              """
+              try:
+                  result: Dict[str, Any] = parse_snyk_results('snyk-results.json')
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write(f"blocking={result['blocking']}\n")
+                      f.write(f"count={result['count']}\n")
+              except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+                  logger.error(f"Failed to parse Snyk results: {e}")
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write("blocking=true\n")
+                      f.write("count=-1\n")
+                  sys.exit(1)
+
+
+          if __name__ == '__main__':
+              main()
+          PYEOF
+          echo "::endgroup::"
+
+      - name: Upload Snyk Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-results
+          path: snyk-results.json
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Comment PR with Snyk Results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            /**
+             * Read and parse Snyk results file
+             * @param {string} filepath - Path to results file
+             * @returns {object} Parsed results
+             */
+            function readSnykResults(filepath) {
+              try {
+                const data = fs.readFileSync(filepath, 'utf8');
+                return JSON.parse(data);
+              } catch (error) {
+                console.error(`Error reading Snyk results: ${error.message}`);
+                return null;
+              }
+            }
+
+            /**
+             * Format vulnerability summary for PR comment
+             * @param {object} results - Snyk scan results
+             * @returns {string} Formatted summary
+             */
+            function formatVulnerabilitySummary(results) {
+              if (!results || !results.vulnerabilities) {
+                return 'No vulnerability data available.';
+              }
+
+              const vulnerabilities = results.vulnerabilities;
+              const highCritical = vulnerabilities.filter(v => 
+                v.severity === 'high' || v.severity === 'critical'
+              );
+              const medium = vulnerabilities.filter(v => v.severity === 'medium');
+              const low = vulnerabilities.filter(v => v.severity === 'low');
+
+              let summary = `## Snyk SCA Scan Results\n\n`;
+              summary += `| Severity | Count |\n`;
+              summary += `|----------|-------|\n`;
+              summary += `| 🔴 Critical | ${highCritical.filter(v => v.severity === 'critical').length} |\n`;
+              summary += `| 🟠 High | ${highCritical.filter(v => v.severity === 'high').length} |\n`;
+              summary += `| 🟡 Medium | ${medium.length} |\n`;
+              summary += `| 🟢 Low | ${low.length} |\n\n`;
+
+              if (highCritical.length > 0) {
+                summary += `### 🔴 High/Critical Vulnerabilities\n\n`;
+                summary += `| ID | Package | Severity | Title |\n`;
+                summary += `|----|---------|----------|-------|\n`;
+                highCritical.forEach(v => {
+                  summary += `| ${v.id} | ${v.packageName} | ${v.severity} | ${v.title} |\n`;
+                });
+                summary += `\n`;
+              }
+
+              return summary;
+            }
+
+            const results = readSnykResults('snyk-results.json');
+            const summary = formatVulnerabilitySummary(results);
+
+            // Find or create comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Snyk SCA Scan Results')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: summary,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: summary,
+              });
+            }
+
+      - name: Check for Blocking Vulnerabilities
+        id: check-blocking
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          BLOCKING="${{ steps.parse-snyk.outputs.blocking }}"
+          COUNT="${{ steps.parse-snyk.outputs.count }}"
+          
+          if [ "$BLOCKING" = "true" ]; then
+            echo "::error::Blocking vulnerabilities found ($COUNT high/critical). Merge blocked."
+            exit 1
+          else
+            echo "::notice::No blocking vulnerabilities found. Proceeding."
+          fi
+
+  # ============================================================
+  # JOB: Security Summary
+  # ============================================================
+  security-summary:
+    name: Security Scan Summary
+    runs-on: ubuntu-latest
+    needs: [dependabot-config, snyk-scan]
+    if: always()
+    steps:
+      - name: Generate Security Summary
+        id: summary
+        run: |
+          set -euo pipefail
+          echo "::group::Security Scan Summary"
+          echo "## Security Scan Summary" > security-summary.md
+          echo "" >> security-summary.md
+          echo "### Dependabot Configuration" >> security-summary.md
+          echo "- Config exists: ${{ needs.dependabot-config.outputs.config_exists }}" >> security-summary.md
+          echo "" >> security-summary.md
+          echo "### Snyk SCA Scan" >> security-summary.md
+          echo "- Blocking vulnerabilities: ${{ needs.snyk
