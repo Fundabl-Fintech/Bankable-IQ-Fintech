@@ -1,0 +1,359 @@
+# CodeQL Configuration for Application Security Practice Stack (§10.4)
+# Owner: platform
+# Depends on: 1345, 1357
+# Blocks: []
+# Spec Sections: §10.4
+# Maturity Target: foundation
+# Acceptance Criteria: OWASP ASVS Level 2 baseline, SAST/DAST/SCA/Secret scanning configured
+
+name: "CodeQL Security Analysis"
+
+# Disable default queries to use our curated security set
+disable-default-queries: false
+
+# Query packs to include for comprehensive security coverage
+queries:
+  # Security-extended query suite (includes all security-relevant queries)
+  - uses: security-extended
+  
+  # Security-and-quality query suite (adds quality and correctness checks)
+  - uses: security-and-quality
+  
+  # Custom security queries for compliance-svc and credit-svc paths (ASVS Level 3)
+  - name: Custom ASVS Level 3 Queries
+    uses: ./codeql/custom-queries/asvs-level-3.qls
+    paths:
+      - compliance-svc
+      - credit-svc
+
+# Paths to include in analysis (exclude test and build artifacts)
+paths:
+  - src
+  - lib
+  - app
+  - compliance-svc
+  - credit-svc
+  - config
+  - scripts
+
+# Paths to exclude from analysis
+paths-ignore:
+  - node_modules
+  - vendor
+  - dist
+  - build
+  - coverage
+  - test
+  - tests
+  - __tests__
+  - "**/*.test.js"
+  - "**/*.test.ts"
+  - "**/*.spec.js"
+  - "**/*.spec.ts"
+  - "**/*.min.js"
+  - "**/*.bundle.js"
+  - "**/generated/**"
+  - "**/migrations/**"
+  - "**/__mocks__/**"
+  - "**/fixtures/**"
+
+# Query filters to enforce OWASP ASVS Level 2 baseline
+query-filters:
+  # Include all security-relevant queries
+  - include:
+      kind: problem
+      severity: error
+      precision: high
+      tags:
+        - security
+        - correctness
+  
+  # Include medium severity queries for comprehensive coverage
+  - include:
+      kind: problem
+      severity: warning
+      precision: high
+      tags:
+        - security
+  
+  # Exclude low severity informational queries to reduce noise
+  - exclude:
+      kind: path-problem
+      severity: warning
+      precision: low
+      tags:
+        - maintainability
+
+# Advanced configuration for comprehensive analysis
+advanced:
+  # Enable all security-related query suites
+  security:
+    # OWASP Top 10 coverage
+    injection: true
+    broken-authentication: true
+    sensitive-data-exposure: true
+    xml-external-entities: true
+    broken-access-control: true
+    security-misconfiguration: true
+    cross-site-scripting: true
+    insecure-deserialization: true
+    using-components-with-known-vulnerabilities: true
+    insufficient-logging-monitoring: true
+    
+    # Additional security categories
+    crypto: true
+    path-injection: true
+    command-injection: true
+    sql-injection: true
+    ldap-injection: true
+    nosql-injection: true
+    template-injection: true
+    open-redirect: true
+    hardcoded-credentials: true
+    insecure-randomness: true
+    insecure-dependency: true
+    insecure-compare: true
+    insecure-temp-file: true
+    log-injection: true
+    http-response-splitting: true
+    request-forgery: true
+    prototype-pollution: true
+    regex-injection: true
+    resource-exhaustion: true
+    unvalidated-redirect: true
+    weak-cryptographic-algorithm: true
+    weak-hashing-algorithm: true
+
+# Language-specific configurations
+languages:
+  javascript:
+    # Enable TypeScript analysis
+    typescript: true
+    
+    # Additional JavaScript/TypeScript specific queries
+    queries:
+      - uses: security-extended
+      - uses: security-and-quality
+      - name: javascript-security
+        paths:
+          - src
+          - lib
+          - app
+    
+    # Exclude test files for JavaScript
+    paths-ignore:
+      - "**/*.test.js"
+      - "**/*.test.ts"
+      - "**/*.spec.js"
+      - "**/*.spec.ts"
+      - "**/__tests__/**"
+      - "**/node_modules/**"
+  
+  python:
+    # Enable Python analysis
+    queries:
+      - uses: security-extended
+      - uses: security-and-quality
+      - name: python-security
+        paths:
+          - src
+          - lib
+          - app
+    
+    paths-ignore:
+      - "**/test/**"
+      - "**/tests/**"
+      - "**/__pycache__/**"
+      - "**/venv/**"
+      - "**/.venv/**"
+  
+  java:
+    # Enable Java/Kotlin analysis
+    queries:
+      - uses: security-extended
+      - uses: security-and-quality
+      - name: java-security
+        paths:
+          - src
+          - lib
+          - app
+    
+    paths-ignore:
+      - "**/test/**"
+      - "**/tests/**"
+      - "**/build/**"
+      - "**/target/**"
+      - "**/generated/**"
+  
+  go:
+    # Enable Go analysis
+    queries:
+      - uses: security-extended
+      - uses: security-and-quality
+      - name: go-security
+        paths:
+          - src
+          - lib
+          - app
+    
+    paths-ignore:
+      - "**/test/**"
+      - "**/tests/**"
+      - "**/vendor/**"
+      - "**/generated/**"
+
+# Severity thresholds for blocking PRs (zero high/critical findings allowed)
+severity-thresholds:
+  error: block
+  warning: warn
+  note: ignore
+
+# PR integration settings
+pull-request:
+  # Fail check run if any high or critical severity findings exist
+  failure-threshold: error
+  
+  # Categories to check in PRs
+  categories:
+    - security
+    - correctness
+  
+  # Annotations to display on PR files
+  annotations:
+    - severity: error
+      include: true
+    - severity: warning
+      include: true
+    - severity: note
+      include: false
+
+# Scheduling configuration for regular scans
+schedule:
+  # Run on every push to main/master branches
+  on-push:
+    branches:
+      - main
+      - master
+      - develop
+  
+  # Run on pull requests
+  on-pull-request:
+    branches:
+      - main
+      - master
+      - develop
+  
+  # Weekly full scan
+  weekly:
+    day: monday
+    time: "02:00"
+    timezone: UTC
+
+# Integration with other security tools (SAST/DAST/SCA/Secret scanning)
+integrations:
+  # Semgrep integration for additional SAST coverage
+  semgrep:
+    enabled: true
+    config: .semgrep/rules/
+    severity-threshold: error
+  
+  # Snyk integration for SCA
+  snyk:
+    enabled: true
+    severity-threshold: high
+    grace-period: 7
+  
+  # Dependabot integration
+  dependabot:
+    enabled: true
+    severity-threshold: high
+    grace-period: 7
+  
+  # GitGuardian for secret scanning
+  gitguardian:
+    enabled: true
+    push-protection: true
+  
+  # GitHub native secret scanning
+  github-secret-scanning:
+    enabled: true
+    push-protection: true
+
+# Reporting configuration
+reporting:
+  # Generate SARIF output for GitHub Security tab
+  sarif:
+    enabled: true
+    output: codeql-results.sarif
+  
+  # Generate CSV report for compliance
+  csv:
+    enabled: true
+    output: codeql-results.csv
+  
+  # Generate HTML report for dashboard
+  html:
+    enabled: true
+    output: codeql-results.html
+
+# Compliance documentation references
+compliance:
+  asvs:
+    level: 2
+    baseline: true
+    documentation: docs/security/asvs-checklist.md
+    level-3-paths:
+      - compliance-svc
+      - credit-svc
+  
+  owasp-top-10:
+    enabled: true
+    version: "2021"
+  
+  penetration-testing:
+    enabled: true
+    frequency: annual
+    retest-days: 90
+    findings-tracking: github-security-advisories
+  
+  bug-bounty:
+    enabled: true
+    platform: hackerone
+    scope-document: docs/security/bug-bounty-scope.md
+    phase: 3
+
+# Resource limits for analysis
+resources:
+  memory: 8192
+  cores: 4
+  timeout-minutes: 60
+
+# Environment-specific configurations
+environments:
+  development:
+    queries:
+      - uses: security-extended
+    severity-thresholds:
+      error: warn
+      warning: note
+      note: ignore
+  
+  staging:
+    queries:
+      - uses: security-extended
+      - uses: security-and-quality
+    severity-thresholds:
+      error: block
+      warning: warn
+      note: ignore
+  
+  production:
+    queries:
+      - uses: security-extended
+      - uses: security-and-quality
+      - name: Custom ASVS Level 3 Queries
+        uses: ./codeql/custom-queries/asvs-level-3.qls
+    severity-thresholds:
+      error: block
+      warning: block
+      note: warn
