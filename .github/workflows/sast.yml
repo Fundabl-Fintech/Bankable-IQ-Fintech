@@ -1,0 +1,351 @@
+# .github/workflows/sast.yml
+# Owner: platform
+# Depends on: [1345, 1357]
+# Blocks: []
+# Spec sections: [§10.4]
+# Maturity target: foundation
+# Description: SAST pipeline running Semgrep and CodeQL on every PR; blocks merge on high/critical findings
+
+name: "SAST - Semgrep & CodeQL"
+
+on:
+  pull_request:
+    branches: [main, master, develop, release/**]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "*.txt"
+  push:
+    branches: [main, master, develop]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "*.txt"
+  schedule:
+    - cron: "0 6 * * 1" # Every Monday at 6:00 UTC
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+  pull-requests: write
+  checks: write
+
+env:
+  SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+  CODEQL_LANGUAGES: "javascript,typescript,python,java,go"
+  NODE_VERSION: "20"
+  SEMGREP_TIMEOUT: 300
+  SEMGREP_MAX_MEMORY: 4096
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================
+  # JOB: semgrep-scan
+  # Runs Semgrep SAST rules on PR changes
+  # ============================================================
+  semgrep-scan:
+    name: "Semgrep SAST"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+
+    container:
+      image: returntocorp/semgrep:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Semgrep token
+        id: validate-token
+        run: |
+          if [[ -z "${{ secrets.SEMGREP_APP_TOKEN }}" ]]; then
+            echo "::error::SEMGREP_APP_TOKEN is not configured. Please add it to repository secrets."
+            exit 1
+          fi
+          echo "token_valid=true" >> $GITHUB_OUTPUT
+
+      - name: Run Semgrep SAST scan
+        id: semgrep
+        continue-on-error: false
+        run: |
+          semgrep ci \
+            --config=auto \
+            --config=p/owasp-top-ten \
+            --config=p/security-audit \
+            --config=p/command-injection \
+            --config=p/secrets \
+            --config=p/sql-injection \
+            --config=p/xss \
+            --config=p/jwt \
+            --config=p/express \
+            --config=p/react \
+            --config=p/nodejs \
+            --config=p/python \
+            --config=p/java \
+            --config=p/golang \
+            --max-lines-per-finding=10 \
+            --max-memory=${{ env.SEMGREP_MAX_MEMORY }} \
+            --timeout=${{ env.SEMGREP_TIMEOUT }} \
+            --timeout-threshold=3 \
+            --severity=ERROR,WARNING \
+            --error \
+            --json \
+            --output=semgrep-results.json \
+            --metrics=off \
+            --oss-only \
+            --no-suppress-baseline \
+            --baseline-commit=${{ github.event.pull_request.base.sha || github.event.before }} \
+            .
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      - name: Upload Semgrep SARIF results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep-results.json
+          category: semgrep
+          checkout_path: ${{ github.workspace }}
+
+      - name: Parse Semgrep results for blocking
+        id: parse-semgrep
+        if: always()
+        run: |
+          if [ -f semgrep-results.json ]; then
+            HIGH_CRITICAL=$(jq '[.results[] | select(.extra.severity == "ERROR" or .extra.severity == "WARNING")] | length' semgrep-results.json)
+            echo "high_critical_findings=$HIGH_CRITICAL" >> $GITHUB_OUTPUT
+            if [ "$HIGH_CRITICAL" -gt 0 ]; then
+              echo "BLOCKING_FINDINGS=true" >> $GITHUB_OUTPUT
+              echo "::error::Semgrep found $HIGH_CRITICAL high/critical severity findings. Merge blocked."
+              jq '.results[] | select(.extra.severity == "ERROR" or .extra.severity == "WARNING") | {path: .path, start_line: .start.line, severity: .extra.severity, message: .extra.message}' semgrep-results.json
+            else
+              echo "BLOCKING_FINDINGS=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "BLOCKING_FINDINGS=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment PR with Semgrep results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('semgrep-results.json', 'utf8'));
+            const findings = results.results.filter(r => r.extra.severity === 'ERROR' || r.extra.severity === 'WARNING');
+            
+            let comment = '## 🔍 Semgrep SAST Results\n\n';
+            
+            if (findings.length === 0) {
+              comment += '✅ **No high or critical severity findings.**\n';
+            } else {
+              comment += `⚠️ **${findings.length} high/critical severity finding(s) found. Merge blocked.**\n\n`;
+              comment += '| File | Line | Severity | Message |\n';
+              comment += '|------|------|----------|---------|\n';
+              findings.slice(0, 20).forEach(f => {
+                const path = f.path || 'unknown';
+                const line = f.start?.line || 0;
+                const severity = f.extra?.severity || 'unknown';
+                const message = (f.extra?.message || 'No message').substring(0, 100);
+                comment += `| ${path} | ${line} | ${severity} | ${message} |\n`;
+              });
+              if (findings.length > 20) {
+                comment += `| ... | ... | ... | ${findings.length - 20} more findings truncated |\n`;
+              }
+            }
+            
+            comment += '\n---\n*Semgrep scan completed. See Security tab for full SARIF results.*';
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # ============================================================
+  # JOB: codeql-analysis
+  # Runs GitHub CodeQL analysis on PR changes
+  # ============================================================
+  codeql-analysis:
+    name: "CodeQL Analysis"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript, typescript, python, java, go]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+          config-file: .github/codeql/codeql-config.yml
+          source-root: ${{ github.workspace }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+        continue-on-error: true
+
+      - name: Perform CodeQL Analysis
+        id: codeql
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+          output: codeql-results
+          upload: False
+
+      - name: Upload CodeQL SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: codeql-results/${{ matrix.language }}.sarif
+          category: codeql-${{ matrix.language }}
+          checkout_path: ${{ github.workspace }}
+
+      - name: Check CodeQL results for blocking findings
+        id: check-codeql
+        if: always()
+        run: |
+          SARIF_FILE="codeql-results/${{ matrix.language }}.sarif"
+          if [ -f "$SARIF_FILE" ]; then
+            HIGH_CRITICAL=$(jq '[.runs[].results[] | select(.properties.severity == "error" or .properties.severity == "warning")] | length' "$SARIF_FILE")
+            echo "high_critical_findings=$HIGH_CRITICAL" >> $GITHUB_OUTPUT
+            if [ "$HIGH_CRITICAL" -gt 0 ]; then
+              echo "BLOCKING_FINDINGS=true" >> $GITHUB_OUTPUT
+              echo "::error::CodeQL found $HIGH_CRITICAL high/critical severity findings for ${{ matrix.language }}. Merge blocked."
+            else
+              echo "BLOCKING_FINDINGS=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "BLOCKING_FINDINGS=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment PR with CodeQL results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const language = '${{ matrix.language }}';
+            const sarifPath = `codeql-results/${language}.sarif`;
+            
+            if (!fs.existsSync(sarifPath)) {
+              console.log(`SARIF file not found for ${language}`);
+              return;
+            }
+            
+            const sarif = JSON.parse(fs.readFileSync(sarifPath, 'utf8'));
+            const results = sarif.runs?.[0]?.results || [];
+            const findings = results.filter(r => 
+              r.properties?.severity === 'error' || r.properties?.severity === 'warning'
+            );
+            
+            let comment = `## 🔬 CodeQL Analysis Results (${language})\n\n`;
+            
+            if (findings.length === 0) {
+              comment += '✅ **No high or critical severity findings.**\n';
+            } else {
+              comment += `⚠️ **${findings.length} high/critical severity finding(s) found. Merge blocked.**\n\n`;
+              comment += '| File | Line | Severity | Message |\n';
+              comment += '|------|------|----------|---------|\n';
+              findings.slice(0, 20).forEach(f => {
+                const path = f.locations?.[0]?.physicalLocation?.artifactLocation?.uri || 'unknown';
+                const line = f.locations?.[0]?.physicalLocation?.region?.startLine || 0;
+                const severity = f.properties?.severity || 'unknown';
+                const message = (f.message?.text || 'No message').substring(0, 100);
+                comment += `| ${path} | ${line} | ${severity} | ${message} |\n`;
+              });
+              if (findings.length > 20) {
+                comment += `| ... | ... | ... | ${findings.length - 20} more findings truncated |\n`;
+              }
+            }
+            
+            comment += '\n---\n*CodeQL scan completed. See Security tab for full SARIF results.*';
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # ============================================================
+  # JOB: enforce-blocking
+  # Enforces merge block if any SAST tool found high/critical findings
+  # ============================================================
+  enforce-blocking:
+    name: "Enforce Merge Block"
+    runs-on: ubuntu-latest
+    needs: [semgrep-scan, codeql-analysis]
+    if: always() && github.event_name == 'pull_request'
+    
+    steps:
+      - name: Check for blocking findings
+        id: check-blocking
+        run: |
+          BLOCKING=false
+          
+          # Check Semgrep results
+          if [[ "${{ needs.semgrep-scan.outputs.BLOCKING_FINDINGS }}" == "true" ]]; then
+            BLOCKING=true
+          fi
+          
+          # Check CodeQL results for each language
+          for lang in javascript typescript python java go; do
+            if [[ "${{ needs.codeql-analysis.outputs[format('check-codeql-{0}', lang)] }}" == "true" ]]; then
+              BLOCKING=true
+            fi
+          done
+          
+          echo "blocking=$BLOCKING" >> $GITHUB_OUTPUT
+          
+          if [[ "$BLOCKING" == "true" ]]; then
+            echo "::error::SAST scan found high/critical findings. Merge is blocked."
+            exit 1
+          fi
+          
+          echo "✅ All SAST scans passed. No blocking findings."
+
+      - name: Update PR status check
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const blocking = '${{ steps.check-blocking.outputs.blocking }}' === 'true';
+            
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'SAST Security Check',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: blocking ? 'failure' : 'success',
+              output: {
+                title: blocking ? 'SAST Security Check Failed' : 'SAST Security Check Passed',
+                summary: blocking ? 
+                  'High/critical findings detected. Merge blocked until resolved.' : 
+                  'All SAST scans passed successfully.'
+              }
+            });
