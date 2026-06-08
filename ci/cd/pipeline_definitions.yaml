@@ -1,0 +1,411 @@
+# ci/cd/pipeline_definitions.yaml
+# Phase 3 Gate: Bug Bounty Program Active Check
+# Blocks: §16.3 public marketplace launch
+# Owner: service:compliance
+# Dependencies: §10.4, §11.2, §16.3
+
+apiVersion: v1
+kind: Pipeline
+metadata:
+  name: phase3-bug-bounty-gate
+  labels:
+    owner: service:compliance
+    maturity-target: compounding_capital
+    blueprint-section: "§XIV Compounding Moat"
+    environment: production
+    criticality: high
+    compliance-level: pci-dss
+    version: "1.0.0"
+    last-reviewed: "2024-01-15"
+spec:
+  description: >
+    Phase 3 gate that verifies the bug bounty program is active in private invite mode
+    before allowing the public marketplace launch. Integrates with existing CI/CD pipeline
+    and security practices (ZAP DAST, pen test, SAST).
+
+  # Dependencies on existing pipeline stages
+  depends_on:
+    - "§10.4 application security practices"
+    - "§11.2 CI/CD pipeline"
+    - "§16.3 Phase 3"
+
+  # This gate blocks the Phase 3 public marketplace launch
+  blocks:
+    - "§16.3 Phase 3 public marketplace launch"
+
+  # Acceptance criteria that must be met
+  acceptance:
+    - "Bug bounty program registered on HackerOne or Bugcrowd"
+    - "Responsible disclosure policy published at security.getbankable.io"
+    - "Scope defined: in-scope services, out-of-scope systems, severity tiers and payout ranges"
+    - "Triage workflow documented: receipt acknowledgement within 24h, severity classification within 72h"
+    - "Internal triage team assigned with SLA for critical/high findings"
+    - "Program soft-launched in private invite mode before Phase 3 public launch"
+    - "Integration with existing security practices: findings tracked alongside ZAP DAST, pen test, and SAST results"
+    - "Legal safe harbor language reviewed by counsel"
+
+  # Global pipeline settings
+  settings:
+    timeout: 300s
+    max_retries: 3
+    retry_delay: 30s
+    notification:
+      on_failure:
+        - channel: "#security-alerts"
+          message: "Phase 3 gate failed: {{ .failure_reason }}"
+          priority: high
+          tags: ["p3-gate", "security", "blocker"]
+        - channel: "#compliance-team"
+          message: "Bug bounty gate blocked - action required"
+          priority: high
+          tags: ["p3-gate", "compliance", "blocker"]
+        - channel: "#release-engineering"
+          message: "Phase 3 gate blocked - marketplace launch on hold"
+          priority: high
+          tags: ["p3-gate", "release", "blocker"]
+      on_success:
+        - channel: "#release-engineering"
+          message: "Phase 3 gate passed - proceeding with marketplace launch"
+          priority: normal
+          tags: ["p3-gate", "release", "success"]
+        - channel: "#security-team"
+          message: "Bug bounty gate validated - all checks passed"
+          priority: normal
+          tags: ["p3-gate", "security", "success"]
+    metrics:
+      enabled: true
+      namespace: "phase3_gate"
+      tags:
+        environment: production
+        component: bug-bounty
+        criticality: high
+
+  # Pipeline stages
+  stages:
+    - name: pre-flight-checks
+      description: "Verify all prerequisites before Phase 3 launch"
+      timeout: 120s
+      jobs:
+        - name: verify-bug-bounty-program
+          description: "Check bug bounty program is active in private invite mode"
+          timeout: 60s
+          steps:
+            - name: check-hackerone-registration
+              action: http-get
+              url: "https://api.hackerone.com/v1/programs/{{ .Values.bugBounty.programSlug }}"
+              headers:
+                Authorization: "Bearer {{ .Values.secrets.hackeroneApiToken }}"
+                Accept: "application/json"
+                User-Agent: "Phase3-Gate/1.0"
+                X-Request-Id: "{{ .RequestID }}"
+              expected_status: 200
+              timeout: 30s
+              retry: 3
+              retry_delay: 5s
+              failure_condition: "Program not found or inactive"
+              validation:
+                - json_path: "$.attributes.state"
+                  expected_value: "active"
+                  error_message: "HackerOne program is not in active state"
+                - json_path: "$.attributes.submission_state"
+                  expected_value: "private"
+                  error_message: "HackerOne program is not in private submission mode"
+              on_failure:
+                action: notify
+                channel: "#security-alerts"
+                message: "HackerOne registration check failed for program {{ .Values.bugBounty.programSlug }}"
+
+            - name: check-bugcrowd-registration
+              action: http-get
+              url: "https://api.bugcrowd.com/v2/programs/{{ .Values.bugBounty.programSlug }}"
+              headers:
+                Authorization: "Bearer {{ .Values.secrets.bugcrowdApiToken }}"
+                Accept: "application/json"
+                User-Agent: "Phase3-Gate/1.0"
+                X-Request-Id: "{{ .RequestID }}"
+              expected_status: 200
+              timeout: 30s
+              retry: 3
+              retry_delay: 5s
+              failure_condition: "Program not found or inactive"
+              validation:
+                - json_path: "$.data.attributes.state"
+                  expected_value: "active"
+                  error_message: "Bugcrowd program is not in active state"
+                - json_path: "$.data.attributes.invite_only"
+                  expected_value: true
+                  error_message: "Bugcrowd program is not in invite-only mode"
+              on_failure:
+                action: notify
+                channel: "#security-alerts"
+                message: "Bugcrowd registration check failed for program {{ .Values.bugBounty.programSlug }}"
+
+            - name: verify-private-invite-mode
+              action: script
+              script: |
+                #!/bin/bash
+                set -euo pipefail
+                
+                # Configuration
+                readonly SCRIPT_NAME="verify-private-invite-mode"
+                readonly TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                
+                # Logging functions
+                log_info() { echo "[${TIMESTAMP}] [INFO] [${SCRIPT_NAME}] $1"; }
+                log_warn() { echo "[${TIMESTAMP}] [WARN] [${SCRIPT_NAME}] $1" >&2; }
+                log_error() { echo "[${TIMESTAMP}] [ERROR] [${SCRIPT_NAME}] $1" >&2; }
+                
+                # Input validation
+                if [[ -z "${BUG_BOUNTY_MODE:-}" ]]; then
+                  log_error "BUG_BOUNTY_MODE environment variable is not set"
+                  exit 1
+                fi
+                
+                if [[ -z "${BUG_BOUNTY_INVITE_CODE:-}" ]]; then
+                  log_error "BUG_BOUNTY_INVITE_CODE environment variable is not set"
+                  exit 1
+                fi
+                
+                # Validate invite code format (alphanumeric, minimum 8 characters)
+                if [[ ! "${BUG_BOUNTY_INVITE_CODE}" =~ ^[a-zA-Z0-9]{8,}$ ]]; then
+                  log_error "Invalid invite code format. Must be alphanumeric and at least 8 characters"
+                  exit 1
+                fi
+                
+                # Verify the bug bounty program is in private invite mode
+                if [[ "${BUG_BOUNTY_MODE}" != "private" ]]; then
+                  log_error "Bug bounty program must be in private invite mode before Phase 3 launch"
+                  log_error "Current mode: ${BUG_BOUNTY_MODE}"
+                  exit 1
+                fi
+                
+                log_info "Bug bounty program is in private invite mode"
+                log_info "Invite code configured: ${BUG_BOUNTY_INVITE_CODE:0:8}..."
+                log_info "Validation completed successfully"
+              env:
+                BUG_BOUNTY_MODE: "{{ .Values.bugBounty.mode }}"
+                BUG_BOUNTY_INVITE_CODE: "{{ .Values.secrets.bugBountyInviteCode }}"
+              on_failure:
+                action: notify
+                channel: "#security-alerts"
+                message: "Private invite mode validation failed"
+
+            - name: check-disclosure-policy
+              action: http-get
+              url: "https://security.getbankable.io/.well-known/security.txt"
+              expected_status: 200
+              timeout: 15s
+              retry: 2
+              retry_delay: 3s
+              failure_condition: "Responsible disclosure policy not published"
+              validation:
+                - content_contains: "Contact:"
+                  error_message: "Security.txt missing Contact field"
+                - content_contains: "Encryption:"
+                  error_message: "Security.txt missing Encryption field"
+                - content_contains: "Acknowledgments:"
+                  error_message: "Security.txt missing Acknowledgments field"
+                - content_contains: "Policy:"
+                  error_message: "Security.txt missing Policy field"
+                - content_contains: "Canonical:"
+                  error_message: "Security.txt missing Canonical field"
+                - content_contains: "Expires:"
+                  error_message: "Security.txt missing Expires field"
+              on_failure:
+                action: notify
+                channel: "#security-alerts"
+                message: "Disclosure policy check failed - security.txt validation error"
+
+            - name: verify-scope-definition
+              action: script
+              script: |
+                #!/bin/bash
+                set -euo pipefail
+                
+                # Configuration
+                readonly SCRIPT_NAME="verify-scope-definition"
+                readonly TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                readonly SCOPE_FILE="security/bug-bounty/scope.yaml"
+                readonly MIN_SEVERITY_TIERS=4
+                
+                # Logging functions
+                log_info() { echo "[${TIMESTAMP}] [INFO] [${SCRIPT_NAME}] $1"; }
+                log_warn() { echo "[${TIMESTAMP}] [WARN] [${SCRIPT_NAME}] $1" >&2; }
+                log_error() { echo "[${TIMESTAMP}] [ERROR] [${SCRIPT_NAME}] $1" >&2; }
+                
+                # Verify scope definition file exists and is readable
+                if [[ ! -f "${SCOPE_FILE}" ]]; then
+                  log_error "Bug bounty scope definition not found: ${SCOPE_FILE}"
+                  exit 1
+                fi
+                
+                if [[ ! -r "${SCOPE_FILE}" ]]; then
+                  log_error "Bug bounty scope definition not readable: ${SCOPE_FILE}"
+                  exit 1
+                fi
+                
+                # Validate scope contains required fields
+                required_fields=(
+                  ".scope.in_scope_services"
+                  ".scope.out_of_scope_systems"
+                  ".scope.severity_tiers"
+                  ".scope.payout_ranges"
+                  ".scope.legal_terms"
+                  ".scope.reporting_guidelines"
+                  ".scope.eligibility_criteria"
+                  ".scope.testing_restrictions"
+                )
+                
+                for field in "${required_fields[@]}"; do
+                  if ! yq eval "${field}" "${SCOPE_FILE}" > /dev/null 2>&1; then
+                    log_error "Scope definition missing required field: ${field}"
+                    exit 1
+                  fi
+                done
+                
+                # Validate severity tiers have proper structure
+                severity_tiers=$(yq eval '.scope.severity_tiers | length' "${SCOPE_FILE}")
+                if [[ "${severity_tiers}" -lt "${MIN_SEVERITY_TIERS}" ]]; then
+                  log_error "Scope must define at least ${MIN_SEVERITY_TIERS} severity tiers (critical, high, medium, low)"
+                  log_error "Current number of tiers: ${severity_tiers}"
+                  exit 1
+                fi
+                
+                # Validate payout ranges are defined for each severity tier
+                for tier in critical high medium low; do
+                  payout=$(yq eval ".scope.payout_ranges.${tier}" "${SCOPE_FILE}" 2>/dev/null)
+                  if [[ -z "${payout}" ]] || [[ "${payout}" == "null" ]]; then
+                    log_error "Payout range not defined for severity tier: ${tier}"
+                    exit 1
+                  fi
+                done
+                
+                log_info "Scope definition validated successfully"
+                log_info "Found ${severity_tiers} severity tiers with defined payout ranges"
+                log_info "Validation completed successfully"
+              on_failure:
+                action: notify
+                channel: "#security-alerts"
+                message: "Scope definition validation failed"
+
+            - name: verify-triage-workflow
+              action: script
+              script: |
+                #!/bin/bash
+                set -euo pipefail
+                
+                # Configuration
+                readonly SCRIPT_NAME="verify-triage-workflow"
+                readonly TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                readonly WORKFLOW_FILE="security/bug-bounty/triage-workflow.yaml"
+                readonly MAX_ACKNOWLEDGMENT_HOURS=24
+                readonly MAX_CLASSIFICATION_HOURS=72
+                
+                # Logging functions
+                log_info() { echo "[${TIMESTAMP}] [INFO] [${SCRIPT_NAME}] $1"; }
+                log_warn() { echo "[${TIMESTAMP}] [WARN] [${SCRIPT_NAME}] $1" >&2; }
+                log_error() { echo "[${TIMESTAMP}] [ERROR] [${SCRIPT_NAME}] $1" >&2; }
+                
+                # Verify workflow file exists
+                if [[ ! -f "${WORKFLOW_FILE}" ]]; then
+                  log_error "Triage workflow definition not found: ${WORKFLOW_FILE}"
+                  exit 1
+                fi
+                
+                # Validate workflow contains required fields
+                required_fields=(
+                  ".workflow.receipt_acknowledgment.timeframe_hours"
+                  ".workflow.severity_classification.timeframe_hours"
+                  ".workflow.triage_team.members"
+                  ".workflow.escalation_procedure"
+                  ".workflow.sla_definitions"
+                  ".workflow.communication_channels"
+                )
+                
+                for field in "${required_fields[@]}"; do
+                  if ! yq eval "${field}" "${WORKFLOW_FILE}" > /dev/null 2>&1; then
+                    log_error "Workflow definition missing required field: ${field}"
+                    exit 1
+                  fi
+                done
+                
+                # Validate SLA timeframes
+                acknowledgment_hours=$(yq eval '.workflow.receipt_acknowledgment.timeframe_hours' "${WORKFLOW_FILE}")
+                classification_hours=$(yq eval '.workflow.severity_classification.timeframe_hours' "${WORKFLOW_FILE}")
+                
+                if [[ "${acknowledgment_hours}" -gt "${MAX_ACKNOWLEDGMENT_HOURS}" ]]; then
+                  log_error "Receipt acknowledgment SLA exceeds maximum of ${MAX_ACKNOWLEDGMENT_HOURS} hours"
+                  log_error "Current SLA: ${acknowledgment_hours} hours"
+                  exit 1
+                fi
+                
+                if [[ "${classification_hours}" -gt "${MAX_CLASSIFICATION_HOURS}" ]]; then
+                  log_error "Severity classification SLA exceeds maximum of ${MAX_CLASSIFICATION_HOURS} hours"
+                  log_error "Current SLA: ${classification_hours} hours"
+                  exit 1
+                fi
+                
+                # Validate triage team members
+                team_members=$(yq eval '.workflow.triage_team.members | length' "${WORKFLOW_FILE}")
+                if [[ "${team_members}" -lt 2 ]]; then
+                  log_error "Triage team must have at least 2 members"
+                  log_error "Current team size: ${team_members}"
+                  exit 1
+                fi
+                
+                log_info "Triage workflow validated successfully"
+                log_info "Acknowledgment SLA: ${acknowledgment_hours}h (max: ${MAX_ACKNOWLEDGMENT_HOURS}h)"
+                log_info "Classification SLA: ${classification_hours}h (max: ${MAX_CLASSIFICATION_HOURS}h)"
+                log_info "Triage team size: ${team_members} members"
+                log_info "Validation completed successfully"
+              on_failure:
+                action: notify
+                channel: "#security-alerts"
+                message: "Triage workflow validation failed"
+
+            - name: verify-integration-with-existing-practices
+              action: script
+              script: |
+                #!/bin/bash
+                set -euo pipefail
+                
+                # Configuration
+                readonly SCRIPT_NAME="verify-integration"
+                readonly TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                readonly INTEGRATION_FILE="security/bug-bounty/integration-config.yaml"
+                
+                # Logging functions
+                log_info() { echo "[${TIMESTAMP}] [INFO] [${SCRIPT_NAME}] $1"; }
+                log_warn() { echo "[${TIMESTAMP}] [WARN] [${SCRIPT_NAME}] $1" >&2; }
+                log_error() { echo "[${TIMESTAMP}] [ERROR] [${SCRIPT_NAME}] $1" >&2; }
+                
+                # Verify integration configuration exists
+                if [[ ! -f "${INTEGRATION_FILE}" ]]; then
+                  log_error "Integration configuration not found: ${INTEGRATION_FILE}"
+                  exit 1
+                fi
+                
+                # Validate integration with existing security practices
+                required_integrations=(
+                  ".integrations.zap_dast.enabled"
+                  ".integrations.pen_test.enabled"
+                  ".integrations.sast.enabled"
+                  ".integrations.findings_tracking.enabled"
+                  ".integrations.incident_response.enabled"
+                )
+                
+                for integration in "${required_integrations[@]}"; do
+                  enabled=$(yq eval "${integration}" "${INTEGRATION_FILE}" 2>/dev/null)
+                  if [[ "${enabled}" != "true" ]]; then
+                    log_error "Required integration not enabled: ${integration}"
+                    exit 1
+                  fi
+                done
+                
+                log_info "Integration with existing security practices validated"
+                log_info "All required integrations are enabled and configured"
+                log_info "Validation completed successfully"
+              on_failure:
+                action: notify
+                channel: "#security-alerts"
+                message: "Integration validation failed
