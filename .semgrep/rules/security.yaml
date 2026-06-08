@@ -1,0 +1,510 @@
+# .semgrep/rules/security.yaml
+# Owner: platform
+# Depends on: [1345, 1357]
+# Blocks: []
+# Spec sections: [§10.4]
+# Maturity target: foundation
+# Acceptance criteria:
+#   (1) OWASP ASVS Level 2 baseline implemented; Level 3 for compliance-svc and credit-svc
+#   (2) SAST: Semgrep + CodeQL on every PR; zero high/critical findings allowed
+#   (3) DAST: OWASP ZAP weekly scan against staging
+#   (4) SCA: Snyk + Dependabot; high/critical CVEs block after 7-day grace
+#   (5) Secret scanning: GitGuardian + GitHub native; push protection enabled
+#   (6) Penetration testing: annual third-party; findings in GitHub Security Advisories
+#   (7) Bug bounty: HackerOne/Bugcrowd in Phase 3
+
+rules:
+  - id: sql-injection-detect
+    pattern-either:
+      - pattern: |
+          $QUERY = "SELECT * FROM $TABLE WHERE $COL = '" . $USER_INPUT . "'"
+      - pattern: |
+          $DB->query("SELECT * FROM $TABLE WHERE $COL = '$USER_INPUT'")
+      - pattern: |
+          $DB->prepare("SELECT * FROM $TABLE WHERE $COL = '$USER_INPUT'")
+      - pattern: |
+          $STMT = $DB->prepare("SELECT * FROM $TABLE WHERE $COL = ?")
+          $STMT->execute([$USER_INPUT])
+    message: >
+      Potential SQL injection detected. Use parameterized queries or prepared statements.
+      Direct string concatenation with user input is prohibited.
+      Reference: OWASP ASVS V5.1, §10.4
+    severity: ERROR
+    languages:
+      - php
+      - python
+      - javascript
+      - typescript
+      - java
+      - ruby
+      - go
+    metadata:
+      cwe: "CWE-89"
+      owasp: "A1:2021 - Injection"
+      asvs: "V5.1"
+      category: "security"
+      confidence: "HIGH"
+      fix: "Use parameterized queries with placeholders instead of string interpolation"
+
+  - id: xss-reflected
+    pattern-either:
+      - pattern: |
+          echo "<div>" . $USER_INPUT . "</div>"
+      - pattern: |
+          print("<div>" . $USER_INPUT . "</div>")
+      - pattern: |
+          $RESPONSE->write("<div>" . $USER_INPUT . "</div>")
+      - pattern: |
+          response.write("<div>" + userInput + "</div>")
+      - pattern: |
+          res.send("<div>" + req.query.param + "</div>")
+    message: >
+      Reflected XSS vulnerability. User input is directly rendered without sanitization.
+      Use output encoding (HTML entity encoding) or a template engine with auto-escaping.
+      Reference: OWASP ASVS V5.3, §10.4
+    severity: ERROR
+    languages:
+      - php
+      - python
+      - javascript
+      - typescript
+      - java
+      - ruby
+    metadata:
+      cwe: "CWE-79"
+      owasp: "A3:2021 - Injection"
+      asvs: "V5.3"
+      category: "security"
+      confidence: "HIGH"
+      fix: "Use htmlspecialchars() or equivalent output encoding function"
+
+  - id: xss-stored
+    pattern-either:
+      - pattern: |
+          $DB->query("INSERT INTO $TABLE (content) VALUES ('$USER_INPUT')")
+      - pattern: |
+          $DB->query("UPDATE $TABLE SET content = '$USER_INPUT' WHERE id = $ID")
+      - pattern: |
+          db.execute("INSERT INTO posts (body) VALUES (?)", [userInput])
+    message: >
+      Potential stored XSS. User input is stored in database without sanitization.
+      All user input must be sanitized before storage and encoded before rendering.
+      Reference: OWASP ASVS V5.3, §10.4
+    severity: ERROR
+    languages:
+      - php
+      - python
+      - javascript
+      - typescript
+      - java
+      - ruby
+      - go
+    metadata:
+      cwe: "CWE-79"
+      owasp: "A3:2021 - Injection"
+      asvs: "V5.3"
+      category: "security"
+      confidence: "HIGH"
+      fix: "Sanitize input with HTML purifier or similar library before storage"
+
+  - id: csrf-missing-token
+    pattern-either:
+      - pattern: |
+          <form action="/$ENDPOINT" method="POST">
+      - pattern: |
+          <form action="/$ENDPOINT" method="post">
+      - pattern: |
+          <form action="/$ENDPOINT" method="POST" >
+    message: >
+      CSRF vulnerability. Form submission without CSRF token.
+      All state-changing POST requests must include a CSRF token.
+      Reference: OWASP ASVS V4.1, §10.4
+    severity: WARNING
+    languages:
+      - html
+      - javascript
+      - typescript
+      - php
+    metadata:
+      cwe: "CWE-352"
+      owasp: "A1:2021 - Broken Access Control"
+      asvs: "V4.1"
+      category: "security"
+      confidence: "MEDIUM"
+      fix: "Add CSRF token field: <input type='hidden' name='csrf_token' value='{{csrf_token}}'>"
+
+  - id: hardcoded-api-key
+    pattern-either:
+      - pattern: |
+          $API_KEY = "$KEY"
+      - pattern: |
+          api_key = "$KEY"
+      - pattern: |
+          API_KEY = "$KEY"
+      - pattern: |
+          const API_KEY = "$KEY"
+      - pattern: |
+          let apiKey = "$KEY"
+      - pattern: |
+          var api_key = "$KEY"
+      - pattern: |
+          "api_key": "$KEY"
+      - pattern: |
+          'api_key': '$KEY'
+    message: >
+      Hardcoded API key detected. Secrets must never be committed to source control.
+      Use environment variables or a secrets manager (Vault, AWS Secrets Manager, etc.).
+      Reference: OWASP ASVS V8.3, §10.4
+    severity: ERROR
+    languages:
+      - php
+      - python
+      - javascript
+      - typescript
+      - java
+      - ruby
+      - go
+      - yaml
+      - json
+    metadata:
+      cwe: "CWE-798"
+      owasp: "A7:2021 - Identification and Authentication Failures"
+      asvs: "V8.3"
+      category: "security"
+      confidence: "HIGH"
+      fix: "Replace with environment variable: getenv('API_KEY') or process.env.API_KEY"
+
+  - id: hardcoded-password
+    pattern-either:
+      - pattern: |
+          $PASSWORD = "$PASS"
+      - pattern: |
+          password = "$PASS"
+      - pattern: |
+          PASSWORD = "$PASS"
+      - pattern: |
+          const PASSWORD = "$PASS"
+      - pattern: |
+          let password = "$PASS"
+      - pattern: |
+          var password = "$PASS"
+      - pattern: |
+          "password": "$PASS"
+      - pattern: |
+          'password': '$PASS'
+    message: >
+      Hardcoded password detected. Passwords must never be stored in source code.
+      Use environment variables or a secrets manager.
+      Reference: OWASP ASVS V8.3, §10.4
+    severity: ERROR
+    languages:
+      - php
+      - python
+      - javascript
+      - typescript
+      - java
+      - ruby
+      - go
+      - yaml
+      - json
+    metadata:
+      cwe: "CWE-798"
+      owasp: "A7:2021 - Identification and Authentication Failures"
+      asvs: "V8.3"
+      category: "security"
+      confidence: "HIGH"
+      fix: "Replace with environment variable: getenv('DB_PASSWORD') or process.env.DB_PASSWORD"
+
+  - id: hardcoded-jwt-secret
+    pattern-either:
+      - pattern: |
+          $JWT_SECRET = "$SECRET"
+      - pattern: |
+          jwt_secret = "$SECRET"
+      - pattern: |
+          JWT_SECRET = "$SECRET"
+      - pattern: |
+          const JWT_SECRET = "$SECRET"
+      - pattern: |
+          let jwtSecret = "$SECRET"
+      - pattern: |
+          var jwt_secret = "$SECRET"
+      - pattern: |
+          "jwt_secret": "$SECRET"
+      - pattern: |
+          'jwt_secret': '$SECRET'
+    message: >
+      Hardcoded JWT secret detected. JWT signing secrets must be stored securely.
+      Use environment variables or a secrets manager.
+      Reference: OWASP ASVS V8.3, §10.4
+    severity: ERROR
+    languages:
+      - php
+      - python
+      - javascript
+      - typescript
+      - java
+      - ruby
+      - go
+      - yaml
+      - json
+    metadata:
+      cwe: "CWE-798"
+      owasp: "A7:2021 - Identification and Authentication Failures"
+      asvs: "V8.3"
+      category: "security"
+      confidence: "HIGH"
+      fix: "Replace with environment variable: getenv('JWT_SECRET') or process.env.JWT_SECRET"
+
+  - id: hardcoded-aws-key
+    pattern-either:
+      - pattern: |
+          $AWS_ACCESS_KEY_ID = "$KEY"
+      - pattern: |
+          aws_access_key_id = "$KEY"
+      - pattern: |
+          AWS_ACCESS_KEY_ID = "$KEY"
+      - pattern: |
+          const AWS_ACCESS_KEY_ID = "$KEY"
+      - pattern: |
+          let awsAccessKeyId = "$KEY"
+      - pattern: |
+          var aws_access_key_id = "$KEY"
+      - pattern: |
+          "aws_access_key_id": "$KEY"
+      - pattern: |
+          'aws_access_key_id': '$KEY'
+    message: >
+      Hardcoded AWS access key detected. AWS credentials must never be committed.
+      Use IAM roles, environment variables, or AWS Secrets Manager.
+      Reference: OWASP ASVS V8.3, §10.4
+    severity: ERROR
+    languages:
+      - php
+      - python
+      - javascript
+      - typescript
+      - java
+      - ruby
+      - go
+      - yaml
+      - json
+    metadata:
+      cwe: "CWE-798"
+      owasp: "A7:2021 - Identification and Authentication Failures"
+      asvs: "V8.3"
+      category: "security"
+      confidence: "HIGH"
+      fix: "Use IAM roles or environment variables for AWS credentials"
+
+  - id: weak-encryption-algorithm
+    pattern-either:
+      - pattern: |
+          md5($DATA)
+      - pattern: |
+          sha1($DATA)
+      - pattern: |
+          MD5($DATA)
+      - pattern: |
+          SHA1($DATA)
+      - pattern: |
+          hash('md5', $DATA)
+      - pattern: |
+          hash('sha1', $DATA)
+      - pattern: |
+          CryptoJS.MD5($DATA)
+      - pattern: |
+          CryptoJS.SHA1($DATA)
+    message: >
+      Weak cryptographic hash function detected. MD5 and SHA-1 are not considered secure.
+      Use SHA-256 or stronger (bcrypt, argon2 for passwords).
+      Reference: OWASP ASVS V6.2, §10.4
+    severity: WARNING
+    languages:
+      - php
+      - python
+      - javascript
+      - typescript
+      - java
+      - ruby
+      - go
+    metadata:
+      cwe: "CWE-327"
+      owasp: "A2:2021 - Cryptographic Failures"
+      asvs: "V6.2"
+      category: "security"
+      confidence: "HIGH"
+      fix: "Use password_hash() with PASSWORD_BCRYPT or hash('sha256', $data)"
+
+  - id: insecure-direct-object-reference
+    pattern-either:
+      - pattern: |
+          $DB->query("SELECT * FROM $TABLE WHERE id = " . $_GET['id'])
+      - pattern: |
+          $DB->query("SELECT * FROM $TABLE WHERE id = " . $_REQUEST['id'])
+      - pattern: |
+          db.query("SELECT * FROM $TABLE WHERE id = " + req.query.id)
+      - pattern: |
+          db.query(`SELECT * FROM $TABLE WHERE id = ${req.params.id}`)
+    message: >
+      Insecure Direct Object Reference (IDOR). Direct use of user-supplied IDs in database queries.
+      Implement authorization checks to verify the user has access to the requested resource.
+      Reference: OWASP ASVS V4.2, §10.4
+    severity: WARNING
+    languages:
+      - php
+      - python
+      - javascript
+      - typescript
+      - java
+      - ruby
+      - go
+    metadata:
+      cwe: "CWE-639"
+      owasp: "A1:2021 - Broken Access Control"
+      asvs: "V4.2"
+      category: "security"
+      confidence: "MEDIUM"
+      fix: "Add authorization check before querying: if (!user.canAccess($id)) { deny(); }"
+
+  - id: open-redirect
+    pattern-either:
+      - pattern: |
+          header("Location: " . $_GET['url'])
+      - pattern: |
+          header("Location: " . $_GET['redirect'])
+      - pattern: |
+          res.redirect(req.query.url)
+      - pattern: |
+          res.redirect(req.query.redirect)
+      - pattern: |
+          redirect($_GET['url'])
+    message: >
+      Open redirect vulnerability. User-controlled URL in redirect.
+      Validate and whitelist redirect destinations to prevent phishing attacks.
+      Reference: OWASP ASVS V11.1, §10.4
+    severity: WARNING
+    languages:
+      - php
+      - python
+      - javascript
+      - typescript
+      - java
+      - ruby
+    metadata:
+      cwe: "CWE-601"
+      owasp: "A1:2021 - Broken Access Control"
+      asvs: "V11.1"
+      category: "security"
+      confidence: "MEDIUM"
+      fix: "Validate redirect URL against whitelist of allowed domains"
+
+  - id: command-injection
+    pattern-either:
+      - pattern: |
+          exec("$COMMAND " . $USER_INPUT)
+      - pattern: |
+          system("$COMMAND " . $USER_INPUT)
+      - pattern: |
+          shell_exec("$COMMAND " . $USER_INPUT)
+      - pattern: |
+          `$COMMAND $USER_INPUT`
+      - pattern: |
+          exec(`$COMMAND ${userInput}`)
+      - pattern: |
+          subprocess.call("$COMMAND " + userInput, shell=True)
+    message: >
+      Command injection vulnerability. User input is passed to shell execution.
+      Avoid shell execution with user input. Use language-native APIs instead.
+      Reference: OWASP ASVS V5.1, §10.4
+    severity: ERROR
+    languages:
+      - php
+      - python
+      - javascript
+      - typescript
+      - java
+      - ruby
+      - go
+    metadata:
+      cwe: "CWE-78"
+      owasp: "A1:2021 - Injection"
+      asvs: "V5.1"
+      category: "security"
+      confidence: "HIGH"
+      fix: "Use escapeshellarg() or avoid shell execution entirely"
+
+  - id: path-traversal
+    pattern-either:
+      - pattern: |
+          file_get_contents($_GET['file'])
+      - pattern: |
+          file_get_contents($_POST['file'])
+      - pattern: |
+          readfile($_GET['file'])
+      - pattern: |
+          fs.readFileSync(req.query.file)
+      - pattern: |
+          fs.readFile(req.query.file)
+      - pattern: |
+          open($_GET['file'])
+    message: >
+      Path traversal vulnerability. User-controlled file path.
+      Validate and sanitize file paths to prevent access to unauthorized files.
+      Reference: OWASP ASVS V12.1, §10.4
+    severity: ERROR
+    languages:
+      - php
+      - python
+      - javascript
+      - typescript
+      - java
+      - ruby
+      - go
+    metadata:
+      cwe: "CWE-22"
+      owasp: "A1:2021 - Broken Access Control"
+      asvs: "V12.1"
+      category: "security"
+      confidence: "HIGH"
+      fix: "Use basename() and validate against whitelist of allowed paths"
+
+  - id: ldap-injection
+    pattern-either:
+      - pattern: |
+          ldap_search($CONN, "(&(uid=$USERNAME)(userPassword=$PASSWORD))")
+      - pattern: |
+          ldap_search($CONN, "(uid=$USERNAME)")
+    message: >
+      LDAP injection vulnerability. User input in LDAP filter.
+      Use LDAP escaping functions or parameterized LDAP queries.
+      Reference: OWASP ASVS V5.1, §10.4
+    severity: ERROR
+    languages:
+      - php
+      - python
+      - java
+      - ruby
+    metadata:
+      cwe: "CWE-90"
+      owasp: "A1:2021 - Injection"
+      asvs: "V5.1"
+      category: "security"
+      confidence: "HIGH"
+      fix: "Use ldap_escape() or equivalent before constructing LDAP filters"
+
+  - id: xml-external-entity
+    pattern-either:
+      - pattern: |
+          simplexml_load_file($USER_INPUT)
+      - pattern: |
+          simplexml_load_string($USER_INPUT)
+      - pattern: |
+          new SimpleXMLElement($USER_INPUT)
+      - pattern: |
+          DOMDocument::loadXML($USER_INPUT)
+      - pattern: |
+          xml_parse($PARSER, $USER_INPUT)
+    message: >
+      XML External Entity (XXE) vulnerability. Disable external entity loading when parsing XML.
+      Reference: OWASP ASVS V5.5, §10
