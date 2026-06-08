@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Dashboard · Application Security Practice Stack</title>
+  <!-- Inter, Roboto, JetBrains Mono via Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Font Awesome 6 (free) for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    /* ---------- RESET & BASE ---------- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: #f8f9fa;
+      color: #202124;
+      line-height: 1.5;
+      padding: 24px;
+    }
+    /* ---------- DESIGN SYSTEM TOKENS ---------- */
+    :root {
+      --primary: #1a73e8;
+      --success: #0f9d58;
+      --warning: #f4b400;
+      --danger: #ea4335;
+      --neutral: #5f6368;
+      --bg: #ffffff;
+      --surface: #f8f9fa;
+      --heading-font: 'Inter', sans-serif;
+      --body-font: 'Roboto', sans-serif;
+      --mono-font: 'JetBrains Mono', monospace;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+      --shadow-hover: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    h1, h2, h3, h4, h5, h6 { font-family: var(--heading-font); font-weight: 600; letter-spacing: -0.01em; }
+    code, pre, .mono { font-family: var(--mono-font); }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ---------- LAYOUT ---------- */
+    .dashboard {
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+    .dashboard-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 28px;
+    }
+    .dashboard-header h1 {
+      font-size: 1.9rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .dashboard-header h1 i { color: var(--primary); }
+    .header-meta {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      color: var(--neutral);
+      font-size: 0.9rem;
+    }
+    .header-meta i { margin-right: 6px; }
+    .badge-owasp {
+      background: #e8f0fe;
+      color: var(--primary);
+      padding: 4px 12px;
+      border-radius: 40px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      font-family: var(--heading-font);
+    }
+
+    /* ---------- METRIC CARDS GRID ---------- */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 18px;
+      margin-bottom: 32px;
+    }
+    .metric-card {
+      background: var(--bg);
+      border-radius: var(--radius);
+      padding: 20px 18px;
+      box-shadow: var(--shadow);
+      transition: box-shadow 0.2s;
+      border-left: 4px solid var(--neutral);
+    }
+    .metric-card:hover { box-shadow: var(--shadow-hover); }
+    .metric-card .metric-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--neutral);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .metric-card .metric-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      font-family: var(--heading-font);
+      line-height: 1.2;
+    }
+    .metric-card .metric-sub {
+      font-size: 0.85rem;
+      color: var(--neutral);
+      margin-top: 4px;
+    }
+    .metric-card .metric-icon {
+      float: right;
+      font-size: 1.8rem;
+      opacity: 0.25;
+    }
+    .metric-card.success { border-left-color: var(--success); }
+    .metric-card.warning { border-left-color: var(--warning); }
+    .metric-card.danger { border-left-color: var(--danger); }
+    .metric-card.primary { border-left-color: var(--primary); }
+
+    /* ---------- SECTION HEADERS ---------- */
+    .section-title {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title i { color: var(--primary); font-size: 1.2rem; }
+
+    /* ---------- CARDS (scan, compliance, etc) ---------- */
+    .card {
+      background: var(--bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 22px;
+      margin-bottom: 24px;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .card-header h3 {
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ---------- STATUS BADGES ---------- */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 14px;
+      border-radius: 40px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: var(--heading-font);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .status-badge.pass { background: #e6f4ea; color: #1e7e34; }
+    .status-badge.fail { background: #fce8e6; color: #c5221f; }
+    .status-badge.warn { background: #fef7e0; color: #b06000; }
+    .status-badge.info { background: #e8f0fe; color: #1a5bb5; }
+    .status-badge i { font-size: 0.7rem; }
+
+    /* ---------- TABLE (vulnerabilities) ---------- */
+    .vuln-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    .vuln-table th {
+      text-align: left;
+      padding: 12px 8px 8px 0;
+      font-weight: 600;
+      color: var(--neutral);
+      border-bottom: 2px solid #e8eaed;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .vuln-table td {
+      padding: 12px 8px 12px 0;
+      border-bottom: 1px solid #f1f3f4;
+      vertical-align: middle;
+    }
+    .vuln-table tr:last-child td { border-bottom: none; }
+    .severity-indicator {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    .severity-critical { background: var(--danger); }
+    .severity-high { background: #e37400; }
+    .severity-medium { background: var(--warning); }
+    .severity-low { background: var(--success); }
+
+    /* ---------- COMPLIANCE CHECKLIST ---------- */
+    .compliance-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid #f1f3f4;
+    }
+    .compliance-item:last-child { border-bottom: none; }
+    .compliance-icon { font-size: 1.2rem; min-width: 24px; text-align: center; }
+    .compliance-icon.pass { color: var(--success); }
+    .compliance-icon.fail { color: var(--danger); }
+    .compliance-icon.warn { color: var(--warning); }
+    .compliance-content { flex: 1; }
+    .compliance-content strong { font-weight: 600; }
+    .compliance-detail { font-size: 0.85rem; color: var(--neutral); margin-top: 2px; }
+
+    /* ---------- SECRET SCAN ALERT ---------- */
+    .secret-alert {
+      background: #fef7e0;
+      border-left: 4px solid var(--warning);
+      padding: 14px 18px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .secret-alert i { font-size: 1.4rem; color: #b06000; }
+    .secret-alert .alert-text { flex: 1; }
+    .secret-alert .alert-text strong { font-weight: 600; }
+
+    /* ---------- SCAN RESULT CARD (mini) ---------- */
+    .scan-result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-top: 8px;
+    }
+    .scan-result-item {
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .scan-result-item i { font-size: 1.4rem; width: 28px; text-align: center; }
+    .scan-result-item .scan-label { font-size: 0.8rem; color: var(--neutral); }
+    .scan-result-item .scan-status { font-weight: 600; font-size: 0.9rem; }
+
+    /* ---------- CVE RISK INDICATOR ---------- */
+    .cve-risk {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f1f3f4;
+      padding: 4px 12px;
+      border-radius: 40px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    .cve-risk i { font-size: 0.7rem; }
+
+    /* ---------- FOOTER / META ---------- */
+    .dashboard-footer {
+      margin-top: 32px;
+      padding-top: 16px;
+      border-top: 1px solid #e8eaed;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--neutral);
+    }
+
+    /* ---------- RESPONSIVE ---------- */
+    @media (max-width: 700px) {
+      body { padding: 16px; }
+      .dashboard-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .header-meta { flex-wrap: wrap; }
+      .metrics-grid { grid-template-columns: 1fr 1fr; }
+      .scan-result-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="dashboard">
+
+  <!-- HEADER -->
+  <header class="dashboard-header">
+    <h1><i class="fas fa-shield-alt"></i> Security Dashboard</h1>
+    <div class="header-meta">
+      <span><i class="fas fa-code-branch"></i> owner: platform</span>
+      <span><i class="fas fa-file-alt"></i> §10.4 · ASVS L2+</span>
+      <span class="badge-owasp"><i class="fas fa-check-circle"></i> OWASP ASVS Level 2 baseline</span>
+    </div>
+  </header>
+
+  <!-- METRIC CARDS -->
+  <section class="metrics-grid">
+    <div class="metric-card danger">
+      <i class="fas fa-bug metric-icon"></i>
+      <div class="metric-title">Critical / High Vulns</div>
+      <div class="metric-value">0</div>
+      <div class="metric-sub"><i class="fas fa-check-circle" style="color:var(--success);"></i> Zero blocking merges</div>
+    </div>
+    <div class="metric-card warning">
+      <i class="fas fa-exclamation-triangle metric-icon"></i>
+      <div class="metric-title">Medium Vulns</div>
+      <div class="metric-value">3</div>
+      <div class="metric-sub">2 SAST · 1 SCA (grace period)</div>
+    </div>
+    <div class="metric-card success">
+      <i class="fas fa-check-double metric-icon"></i>
+      <div class="metric-title">Compliance Checks</div>
+      <div class="metric-value">12/12</div>
+      <div class="metric-sub">ASVS L2+ · all passed</div>
+    </div>
+    <div class="metric-card primary">
+      <i class="fas fa-clock metric-icon"></i>
+      <div class="metric-title">Last DAST Scan</div>
+      <div class="metric-value">2h ago</div>
+      <div class="metric-sub">OWASP ZAP · staging</div>
+    </div>
+  </section>
+
+  <!-- ROW: SCAN RESULTS + SECRET SCAN -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+    <!-- SCAN RESULT CARD (SAST / DAST / SCA) -->
+    <div class="card">
+      <div class="card-header">
+        <h3><i class="fas fa-search"></i> Scan Results</h3>
+        <span class="status-badge pass"><i class="fas fa-check"></i> All configured</span>
+      </div>
+      <div class="scan-result-grid">
+        <div class="scan-result-item">
+          <i class="fas fa-code" style="color:var(--primary);"></i>
+          <div>
+            <div class="scan-label">SAST · Semgrep + CodeQL</div>
+            <div class="scan-status" style="color:var(--success);">0 high/critical</div>
+          </div>
+        </div>
+        <div class="scan-result-item">
+          <i class="fas fa-globe" style="color:#e37400;"></i>
+          <div>
+            <div class="scan-label">DAST · OWASP ZAP</div>
+            <div class="scan-status" style="color:var(--success);">Weekly · 2h ago</div>
+          </div>
+        </div>
+        <div class="scan-result-item">
+          <i class="fas fa-boxes" style="color:var(--warning);"></i>
+          <div>
+            <div class="scan-label">SCA · Snyk + Dependabot</div>
+            <div class="scan-status" style="color:var(--warning);">1 medium (grace)</div>
+          </div>
+        </div>
+        <div class="scan-result-item">
+          <i class="fas fa-secret" style="color:var(--danger);"></i>
+          <div>
+            <div class="scan-label">Secret scanning</div>
+            <div class="scan-status" style="color:var(--success);">Push protection on</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top: 16px; font-size:0.85rem; color:var(--neutral);">
+        <i class="fas fa-check-circle" style="color:var(--success);"></i> Zero high/critical findings allowed to merge.
+      </div>
+    </div>
+
+    <!-- SECRET SCAN ALERT + BUG BOUNTY -->
+    <div class="card">
+      <div class="card-header">
+        <h3><i class="fas fa-user-secret"></i> Secret &amp; Bug Bounty</h3>
+        <span class="status-badge info"><i class="fas fa-sync-alt"></i> Active</span>
+      </div>
+      <div class="secret-alert" style="margin-bottom: 16px;">
+        <i class="fas fa-shield"></i>
+        <div class="alert-text">
+          <strong>GitGuardian + GitHub native</strong> — push protection enabled on all repos. No secrets committed.
+        </div>
+        <span class="status-badge pass"><i class="fas fa-lock"></i> 0 alerts</span>
+      </div>
+      <div style="background: #e8f0fe; border-radius: 8px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <i class="fas fa-bug" style="color:var(--primary); font-size:1.2rem;"></i>
+        <div style="flex:1;">
+          <strong>Bug bounty · H
