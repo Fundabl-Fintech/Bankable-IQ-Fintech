@@ -1,0 +1,368 @@
+# =============================================================================
+# DAST Pipeline - OWASP ZAP Weekly Scan
+# Owner: platform
+# Depends on: #1345, #1357
+# Spec: §10.4 - Application Security Practice Stack
+# Maturity Target: foundation
+# =============================================================================
+# Acceptance Criteria:
+# (3) DAST: OWASP ZAP scheduled scan against staging environment; weekly run;
+#     results published to security dashboard.
+# =============================================================================
+
+name: "DAST - OWASP ZAP Weekly Scan"
+
+on:
+  schedule:
+    # Weekly scan: every Monday at 06:00 UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    # Allow manual trigger for ad-hoc scans
+    inputs:
+      target_url:
+        description: "Target URL for ZAP scan (defaults to staging)"
+        required: false
+        default: "https://staging.example.com"
+        type: string
+      scan_type:
+        description: "Type of ZAP scan to run"
+        required: true
+        default: "full"
+        type: choice
+        options:
+          - full
+          - baseline
+          - api
+
+# =============================================================================
+# Environment & Permissions
+# =============================================================================
+env:
+  ZAP_VERSION: "2.15.0"
+  DOCKER_IMAGE: "ghcr.io/zaproxy/zaproxy:stable"
+  STAGING_URL: "https://staging.example.com"
+  REPORT_DIR: "zap-reports"
+  ARTIFACT_RETENTION_DAYS: 90
+  MAX_HIGH_ALERTS: 0
+  MAX_MEDIUM_ALERTS: 10
+
+permissions:
+  contents: read
+  security-events: write
+  actions: write
+  checks: write
+
+# =============================================================================
+# Concurrency: Prevent overlapping scans
+# =============================================================================
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+# =============================================================================
+# Jobs
+# =============================================================================
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Validate Inputs
+  # ---------------------------------------------------------------------------
+  validate-inputs:
+    name: "Validate Workflow Inputs"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      target_url: ${{ steps.validate.outputs.target_url }}
+      scan_type: ${{ steps.validate.outputs.scan_type }}
+
+    steps:
+      - name: Validate and sanitize inputs
+        id: validate
+        run: |
+          set -euo pipefail
+
+          # Validate target URL
+          TARGET_URL="${{ github.event.inputs.target_url || env.STAGING_URL }}"
+          if [[ -z "${TARGET_URL}" ]]; then
+            echo "::error::Target URL cannot be empty"
+            exit 1
+          fi
+
+          # Validate URL format
+          if [[ ! "${TARGET_URL}" =~ ^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$ ]]; then
+            echo "::error::Invalid target URL format: ${TARGET_URL}"
+            exit 1
+          fi
+
+          # Validate scan type
+          SCAN_TYPE="${{ github.event.inputs.scan_type || 'baseline' }}"
+          case "${SCAN_TYPE}" in
+            full|baseline|api)
+              ;;
+            *)
+              echo "::error::Invalid scan type: ${SCAN_TYPE}. Must be one of: full, baseline, api"
+              exit 1
+              ;;
+          esac
+
+          echo "target_url=${TARGET_URL}" >> "${GITHUB_OUTPUT}"
+          echo "scan_type=${SCAN_TYPE}" >> "${GITHUB_OUTPUT}"
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Run OWASP ZAP Scan
+  # ---------------------------------------------------------------------------
+  zap-scan:
+    name: "OWASP ZAP Security Scan"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    needs: [validate-inputs]
+
+    steps:
+      # Step 1: Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Step 2: Create reports directory
+      - name: Create reports directory
+        run: |
+          set -euo pipefail
+          mkdir -p "${REPORT_DIR}"
+          echo "REPORT_DIR=${REPORT_DIR}" >> "${GITHUB_ENV}"
+
+      # Step 3: Run OWASP ZAP Baseline Scan
+      - name: Run OWASP ZAP Baseline Scan
+        if: ${{ needs.validate-inputs.outputs.scan_type == 'baseline' || github.event_name == 'schedule' }}
+        run: |
+          set -euo pipefail
+          
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}/${REPORT_DIR}:/zap/wrk:rw" \
+            -t "${DOCKER_IMAGE}" \
+            zap-baseline.py \
+            -t "${{ needs.validate-inputs.outputs.target_url }}" \
+            -g gen.conf \
+            -r zap_baseline_report.html \
+            -w zap_baseline_report.md \
+            -x zap_baseline_report.xml \
+            -J zap_baseline_report.json \
+            --hook /zap/auth_hooks.py \
+            -I \
+            -d
+
+      # Step 4: Run OWASP ZAP Full Scan
+      - name: Run OWASP ZAP Full Scan
+        if: ${{ needs.validate-inputs.outputs.scan_type == 'full' }}
+        run: |
+          set -euo pipefail
+          
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}/${REPORT_DIR}:/zap/wrk:rw" \
+            -t "${DOCKER_IMAGE}" \
+            zap-full-scan.py \
+            -t "${{ needs.validate-inputs.outputs.target_url }}" \
+            -g gen.conf \
+            -r zap_full_report.html \
+            -w zap_full_report.md \
+            -x zap_full_report.xml \
+            -J zap_full_report.json \
+            --hook /zap/auth_hooks.py \
+            -I \
+            -d \
+            -m 10 \
+            -T 60
+
+      # Step 5: Run OWASP ZAP API Scan
+      - name: Run OWASP ZAP API Scan
+        if: ${{ needs.validate-inputs.outputs.scan_type == 'api' }}
+        run: |
+          set -euo pipefail
+          
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}/${REPORT_DIR}:/zap/wrk:rw" \
+            -t "${DOCKER_IMAGE}" \
+            zap-api-scan.py \
+            -t "${{ needs.validate-inputs.outputs.target_url }}" \
+            -f openapi \
+            -g gen.conf \
+            -r zap_api_report.html \
+            -w zap_api_report.md \
+            -x zap_api_report.xml \
+            -J zap_api_report.json \
+            --hook /zap/auth_hooks.py \
+            -I \
+            -d
+
+      # Step 6: Upload ZAP Reports as Artifacts
+      - name: Upload ZAP Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: "zap-reports-${{ github.run_id }}"
+          path: "${{ env.REPORT_DIR }}/"
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+          if-no-files-found: error
+          compression-level: 6
+
+      # Step 7: Generate SARIF Report for GitHub Security Tab
+      - name: Generate SARIF Report
+        run: |
+          set -euo pipefail
+          
+          # Find the JSON report file
+          REPORT_JSON=$(find "${REPORT_DIR}" -name "zap_*_report.json" -type f | head -1)
+          
+          if [[ -f "${REPORT_JSON}" ]]; then
+            docker run --rm \
+              -v "${GITHUB_WORKSPACE}/${REPORT_DIR}:/data:rw" \
+              -t "${DOCKER_IMAGE}" \
+              zap2sarif \
+              -i "/data/$(basename "${REPORT_JSON}")" \
+              -o /data/zap_report.sarif
+          else
+            echo "::warning::No ZAP JSON report found for SARIF conversion"
+          fi
+
+      # Step 8: Upload SARIF to GitHub Security Tab
+      - name: Upload SARIF to GitHub
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "${{ env.REPORT_DIR }}/zap_report.sarif"
+          category: "owasp-zap"
+          checkout_path: "${{ github.workspace }}"
+
+      # Step 9: Parse and Summarize Results
+      - name: Parse ZAP Results
+        id: parse
+        run: |
+          set -euo pipefail
+          
+          # Extract key metrics from JSON report
+          REPORT_JSON=$(find "${REPORT_DIR}" -name "zap_*_report.json" -type f | head -1)
+          
+          if [[ -f "${REPORT_JSON}" ]]; then
+            HIGH_COUNT=$(jq '.site[0].alerts[] | select(.riskcode == "3") | .count' "${REPORT_JSON}" 2>/dev/null | awk '{s+=$1} END {print s+0}')
+            MEDIUM_COUNT=$(jq '.site[0].alerts[] | select(.riskcode == "2") | .count' "${REPORT_JSON}" 2>/dev/null | awk '{s+=$1} END {print s+0}')
+            LOW_COUNT=$(jq '.site[0].alerts[] | select(.riskcode == "1") | .count' "${REPORT_JSON}" 2>/dev/null | awk '{s+=$1} END {print s+0}')
+            INFO_COUNT=$(jq '.site[0].alerts[] | select(.riskcode == "0") | .count' "${REPORT_JSON}" 2>/dev/null | awk '{s+=$1} END {print s+0}')
+            
+            echo "high=${HIGH_COUNT:-0}" >> "${GITHUB_OUTPUT}"
+            echo "medium=${MEDIUM_COUNT:-0}" >> "${GITHUB_OUTPUT}"
+            echo "low=${LOW_COUNT:-0}" >> "${GITHUB_OUTPUT}"
+            echo "info=${INFO_COUNT:-0}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "high=0" >> "${GITHUB_OUTPUT}"
+            echo "medium=0" >> "${GITHUB_OUTPUT}"
+            echo "low=0" >> "${GITHUB_OUTPUT}"
+            echo "info=0" >> "${GITHUB_OUTPUT}"
+          fi
+
+      # Step 10: Enforce Security Thresholds
+      - name: Enforce Security Thresholds
+        run: |
+          set -euo pipefail
+          
+          HIGH_COUNT="${{ steps.parse.outputs.high }}"
+          MEDIUM_COUNT="${{ steps.parse.outputs.medium }}"
+          
+          echo "::group::Security Threshold Check"
+          echo "High severity alerts: ${HIGH_COUNT} (max: ${MAX_HIGH_ALERTS})"
+          echo "Medium severity alerts: ${MEDIUM_COUNT} (max: ${MAX_MEDIUM_ALERTS})"
+          
+          if [[ "${HIGH_COUNT}" -gt "${MAX_HIGH_ALERTS}" ]]; then
+            echo "::error::High severity alert threshold exceeded: ${HIGH_COUNT} > ${MAX_HIGH_ALERTS}"
+            exit 1
+          fi
+          
+          if [[ "${MEDIUM_COUNT}" -gt "${MAX_MEDIUM_ALERTS}" ]]; then
+            echo "::warning::Medium severity alert threshold exceeded: ${MEDIUM_COUNT} > ${MAX_MEDIUM_ALERTS}"
+          fi
+          
+          echo "::endgroup::"
+
+      # Step 11: Create Security Dashboard Summary
+      - name: Create Security Dashboard Summary
+        run: |
+          set -euo pipefail
+          
+          cat << 'EOF' > "${REPORT_DIR}/dashboard-summary.md"
+          # OWASP ZAP Security Scan Summary
+          
+          ## Scan Information
+          - **Target:** ${{ needs.validate-inputs.outputs.target_url }}
+          - **Scan Type:** ${{ needs.validate-inputs.outputs.scan_type }}
+          - **Date:** $(date -u '+%Y-%m-%d %H:%M UTC')
+          - **Run ID:** ${{ github.run_id }}
+          
+          ## Vulnerability Summary
+          | Severity | Count |
+          |----------|-------|
+          | High | ${{ steps.parse.outputs.high }} |
+          | Medium | ${{ steps.parse.outputs.medium }} |
+          | Low | ${{ steps.parse.outputs.low }} |
+          | Info | ${{ steps.parse.outputs.info }} |
+          
+          ## Threshold Status
+          - High Alerts: ${{ steps.parse.outputs.high }} / ${MAX_HIGH_ALERTS} (max)
+          - Medium Alerts: ${{ steps.parse.outputs.medium }} / ${MAX_MEDIUM_ALERTS} (max)
+          
+          ## Next Steps
+          - Review detailed reports in artifacts
+          - Address high severity findings immediately
+          - Schedule remediation for medium severity findings
+          - Track findings in GitHub Security Advisories
+          EOF
+
+      # Step 12: Publish to Security Dashboard
+      - name: Publish to Security Dashboard
+        run: |
+          set -euo pipefail
+          
+          # Create dashboard entry
+          cat << 'EOF' > "${REPORT_DIR}/dashboard-entry.json"
+          {
+            "scan_id": "${{ github.run_id }}",
+            "timestamp": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
+            "target": "${{ needs.validate-inputs.outputs.target_url }}",
+            "scan_type": "${{ needs.validate-inputs.outputs.scan_type }}",
+            "results": {
+              "high": ${{ steps.parse.outputs.high }},
+              "medium": ${{ steps.parse.outputs.medium }},
+              "low": ${{ steps.parse.outputs.low }},
+              "info": ${{ steps.parse.outputs.info }}
+            },
+            "thresholds": {
+              "max_high": ${MAX_HIGH_ALERTS},
+              "max_medium": ${MAX_MEDIUM_ALERTS}
+            },
+            "status": "${{ steps.parse.outputs.high > env.MAX_HIGH_ALERTS && 'FAILED' || 'PASSED' }}"
+          }
+          EOF
+          
+          echo "::notice::Security dashboard entry created successfully"
+
+      # Step 13: Notify on Failure
+      - name: Notify on Scan Failure
+        if: failure()
+        run: |
+          set -euo pipefail
+          
+          echo "::error::OWASP ZAP scan failed for target: ${{ needs.validate-inputs.outputs.target_url }}"
+          echo "::error::Scan type: ${{ needs.validate-inputs.outputs.scan_type }}"
+          echo "::error::Run ID: ${{ github.run_id }}"
+          
+          # Create notification payload
+          cat << 'EOF' > "${REPORT_DIR}/notification.json"
+          {
+            "event": "scan_failure",
+            "severity": "critical",
+            "workflow": "${{ github.workflow }}",
+            "run_id": "${{ github.run_id }}",
+            "target": "${{ needs.validate-inputs.outputs.target_url }}",
+            "scan_type": "${{ needs.validate-inputs.outputs.scan_type }}",
+            "timestamp": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
+            "repository": "${{ github.repository }}"
+          }
+          EOF
+          
+          echo "::warning::Notification payload created for incident response"
