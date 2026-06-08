@@ -1,0 +1,363 @@
+{
+  "owner": "platform",
+  "depends_on": [1345, 1357],
+  "blocks": [],
+  "spec_sections": ["§10.4"],
+  "maturity_target": "foundation",
+  "acceptance_criteria": [
+    "OWASP ASVS Level 2 baseline implemented: ASVS checklist documented in docs/security/asvs-checklist.md; Level 3 applied for compliance-svc and credit-svc paths.",
+    "SAST: Semgrep rules and GitHub CodeQL configured and running on every PR; zero high/critical findings allowed to merge.",
+    "DAST: OWASP ZAP scheduled scan against staging environment; weekly run; results published to security dashboard.",
+    "SCA: Snyk and Dependabot configured for all repos; high/critical CVEs block merge after 7-day grace period.",
+    "Secret scanning: GitGuardian configured for all repos; GitHub native secret scanning enabled; push protection on for all repos prevents secrets from being committed.",
+    "Penetration testing: annual third-party pentest contracted; findings tracked in GitHub Security Advisories; retested within 90 days.",
+    "Bug bounty: HackerOne or Bugcrowd program configured and launched in Phase 3; scope document published."
+  ],
+  "metadata": {
+    "description": "Mock data for dashboard development and testing (SAST/DAST/SCA results)",
+    "canonical_source": "docs/spec/engineering-spec-v1.0.html §10.4",
+    "generated_at": "2026-06-08T04:20:00.000000+00:00",
+    "version": "1.0.0",
+    "architecture": {
+      "design_system": {
+        "principles": [
+          "Security-first: All UI components must clearly communicate security status and actions",
+          "Consistent: Use standardized patterns for security alerts, status indicators, and configuration forms",
+          "Accessible: WCAG 2.1 AA compliance for all security-related interfaces"
+        ],
+        "color_palette": {
+          "primary": "#1a73e8",
+          "success": "#0f9d58",
+          "warning": "#f4b400",
+          "danger": "#ea4335",
+          "neutral": "#5f6368",
+          "background": "#ffffff",
+          "surface": "#f8f9fa"
+        },
+        "typography": {
+          "heading": "Inter, sans-serif",
+          "body": "Roboto, sans-serif",
+          "monospace": "JetBrains Mono, monospace"
+        },
+        "components": [
+          "SecurityStatusBadge",
+          "VulnerabilityTable",
+          "ScanResultCard",
+          "ComplianceChecklist",
+          "SecretScanAlert",
+          "CVERiskIndicator",
+          "DashboardMetricCard",
+          "ConfigurationForm"
+        ]
+      }
+    },
+    "dependencies": {
+      "cdns": ["cdnjs.cloudflare.com", "unpkg.com"],
+      "tools": ["semgrep", "codeql", "owasp-zap", "snyk", "dependabot", "gitguardian"],
+      "external_services": ["github-actions", "hackerone", "bugcrowd"]
+    },
+    "domain": "web"
+  },
+  "scans": {
+    "sast": {
+      "tool": "Semgrep + CodeQL",
+      "status": "configured",
+      "last_run": "2026-06-08T03:00:00.000000+00:00",
+      "findings": {
+        "critical": 0,
+        "high": 0,
+        "medium": 3,
+        "low": 12,
+        "info": 45
+      },
+      "recent_findings": [
+        {
+          "id": "SAST-2026-001",
+          "severity": "medium",
+          "rule": "react-dangerously-set-innerhtml",
+          "file": "src/components/UserProfile.tsx",
+          "line": 142,
+          "message": "Potentially unsafe use of dangerouslySetInnerHTML. Sanitize user input before rendering.",
+          "status": "open",
+          "created_at": "2026-06-07T14:22:00.000000+00:00",
+          "remediation": "Use a sanitization library like DOMPurify or prefer React's built-in escaping."
+        },
+        {
+          "id": "SAST-2026-002",
+          "severity": "medium",
+          "rule": "express-sql-injection",
+          "file": "src/api/credit-svc/query.ts",
+          "line": 89,
+          "message": "SQL query constructed with string concatenation. Use parameterized queries.",
+          "status": "in_progress",
+          "created_at": "2026-06-06T09:15:00.000000+00:00",
+          "remediation": "Replace string interpolation with parameterized query or ORM."
+        },
+        {
+          "id": "SAST-2026-003",
+          "severity": "medium",
+          "rule": "hardcoded-secret",
+          "file": "src/config/staging.ts",
+          "line": 23,
+          "message": "Hardcoded API key detected. Move to environment variables or secret manager.",
+          "status": "open",
+          "created_at": "2026-06-05T16:45:00.000000+00:00",
+          "remediation": "Remove hardcoded value and reference from environment or vault."
+        }
+      ],
+      "coverage": {
+        "total_repos": 24,
+        "scanned_repos": 24,
+        "scan_frequency": "every_pr",
+        "block_on_high_critical": true,
+        "last_full_scan": "2026-06-08T03:00:00.000000+00:00"
+      }
+    },
+    "dast": {
+      "tool": "OWASP ZAP",
+      "status": "scheduled",
+      "last_run": "2026-06-07T06:00:00.000000+00:00",
+      "next_run": "2026-06-14T06:00:00.000000+00:00",
+      "findings": {
+        "critical": 0,
+        "high": 1,
+        "medium": 4,
+        "low": 18,
+        "info": 32
+      },
+      "recent_findings": [
+        {
+          "id": "DAST-2026-001",
+          "severity": "high",
+          "rule": "Missing X-Frame-Options Header",
+          "endpoint": "https://staging.api.example.com/api/v2/credit/apply",
+          "method": "POST",
+          "message": "X-Frame-Options header is missing, making the application vulnerable to clickjacking attacks.",
+          "status": "open",
+          "created_at": "2026-06-07T06:15:00.000000+00:00",
+          "remediation": "Add X-Frame-Options: DENY or SAMEORIGIN header to all responses."
+        },
+        {
+          "id": "DAST-2026-002",
+          "severity": "medium",
+          "rule": "Missing Content-Security-Policy Header",
+          "endpoint": "https://staging.api.example.com/api/v1/auth/login",
+          "method": "GET",
+          "message": "Content-Security-Policy header is not set, increasing risk of XSS attacks.",
+          "status": "in_progress",
+          "created_at": "2026-06-07T06:20:00.000000+00:00",
+          "remediation": "Implement a strict CSP header allowing only trusted sources."
+        },
+        {
+          "id": "DAST-2026-003",
+          "severity": "medium",
+          "rule": "Server Leaks Version Information via Server Header",
+          "endpoint": "https://staging.api.example.com/api/v1/health",
+          "method": "GET",
+          "message": "Server header reveals nginx/1.22.0. Remove or obfuscate version information.",
+          "status": "open",
+          "created_at": "2026-06-07T06:22:00.000000+00:00",
+          "remediation": "Set server_tokens off in nginx configuration."
+        },
+        {
+          "id": "DAST-2026-004",
+          "severity": "medium",
+          "rule": "Cookie Without Secure Flag",
+          "endpoint": "https://staging.api.example.com/api/v1/auth/session",
+          "method": "POST",
+          "message": "Session cookie missing Secure flag. Cookie can be transmitted over unencrypted HTTP.",
+          "status": "open",
+          "created_at": "2026-06-07T06:25:00.000000+00:00",
+          "remediation": "Set Secure and HttpOnly flags on all session cookies."
+        },
+        {
+          "id": "DAST-2026-005",
+          "severity": "medium",
+          "rule": "Missing Strict-Transport-Security Header",
+          "endpoint": "https://staging.api.example.com/api/v1/credit/status",
+          "method": "GET",
+          "message": "HSTS header not present. Users could be downgraded to HTTP.",
+          "status": "open",
+          "created_at": "2026-06-07T06:30:00.000000+00:00",
+          "remediation": "Add Strict-Transport-Security header with a max-age of at least 31536000."
+        }
+      ],
+      "coverage": {
+        "target_environment": "staging",
+        "scan_frequency": "weekly",
+        "endpoints_scanned": 156,
+        "endpoints_total": 180,
+        "coverage_percentage": 86.67
+      }
+    },
+    "sca": {
+      "tool": "Snyk + Dependabot",
+      "status": "configured",
+      "last_run": "2026-06-08T02:00:00.000000+00:00",
+      "findings": {
+        "critical": 0,
+        "high": 2,
+        "medium": 8,
+        "low": 15
+      },
+      "recent_findings": [
+        {
+          "id": "SCA-2026-001",
+          "severity": "high",
+          "package": "lodash",
+          "version": "4.17.20",
+          "cve": "CVE-2021-23337",
+          "message": "Prototype pollution in lodash versions < 4.17.21. Remote code execution possible.",
+          "status": "in_progress",
+          "created_at": "2026-06-01T10:00:00.000000+00:00",
+          "grace_period_end": "2026-06-08T10:00:00.000000+00:00",
+          "remediation": "Upgrade lodash to version 4.17.21 or later."
+        },
+        {
+          "id": "SCA-2026-002",
+          "severity": "high",
+          "package": "axios",
+          "version": "0.21.1",
+          "cve": "CVE-2021-3749",
+          "message": "Server-Side Request Forgery (SSRF) in axios versions < 0.21.2.",
+          "status": "open",
+          "created_at": "2026-06-03T08:30:00.000000+00:00",
+          "grace_period_end": "2026-06-10T08:30:00.000000+00:00",
+          "remediation": "Upgrade axios to version 0.21.2 or later."
+        },
+        {
+          "id": "SCA-2026-003",
+          "severity": "medium",
+          "package": "express",
+          "version": "4.17.1",
+          "cve": "CVE-2022-24999",
+          "message": "Open redirect in qs library used by express. Versions < 4.17.3 affected.",
+          "status": "open",
+          "created_at": "2026-06-05T12:00:00.000000+00:00",
+          "grace_period_end": "2026-06-12T12:00:00.000000+00:00",
+          "remediation": "Upgrade express to version 4.17.3 or later."
+        }
+      ],
+      "coverage": {
+        "total_repos": 24,
+        "monitored_repos": 24,
+        "scan_frequency": "continuous",
+        "block_on_high_critical": true,
+        "grace_period_days": 7,
+        "last_full_audit": "2026-06-08T02:00:00.000000+00:00"
+      }
+    },
+    "secret_scanning": {
+      "tool": "GitGuardian + GitHub Native",
+      "status": "configured",
+      "last_run": "2026-06-08T04:00:00.000000+00:00",
+      "findings": {
+        "critical": 0,
+        "high": 0,
+        "medium": 1,
+        "low": 3
+      },
+      "recent_findings": [
+        {
+          "id": "SECRET-2026-001",
+          "severity": "medium",
+          "type": "AWS Access Key",
+          "file": "src/config/backup.env.example",
+          "line": 5,
+          "message": "Potential AWS Access Key ID detected in example config file. Remove before committing.",
+          "status": "resolved",
+          "created_at": "2026-06-04T11:00:00.000000+00:00",
+          "resolved_at": "2026-06-04T14:30:00.000000+00:00",
+          "remediation": "Removed the example key and replaced with placeholder text."
+        },
+        {
+          "id": "SECRET-2026-002",
+          "severity": "low",
+          "type": "GitHub Token",
+          "file": "docs/development-setup.md",
+          "line": 42,
+          "message": "Example GitHub token found in documentation. Use placeholder tokens only.",
+          "status": "open",
+          "created_at": "2026-06-06T09:00:00.000000+00:00",
+          "remediation": "Replace with a placeholder like <your-token>."
+        },
+        {
+          "id": "SECRET-2026-003",
+          "severity": "low",
+          "type": "Private Key",
+          "file": "tests/fixtures/test_keys.pem",
+          "line": 1,
+          "message": "Private key detected in test fixtures. Use generated test keys only.",
+          "status": "open",
+          "created_at": "2026-06-07T16:00:00.000000+00:00",
+          "remediation": "Replace with a non-sensitive test key or remove the file."
+        }
+      ],
+      "coverage": {
+        "total_repos": 24,
+        "scanned_repos": 24,
+        "push_protection_enabled": true,
+        "scan_frequency": "real_time",
+        "last_full_scan": "2026-06-08T04:00:00.000000+00:00"
+      }
+    },
+    "penetration_testing": {
+      "status": "contracted",
+      "last_test": "2026-03-15T00:00:00.000000+00:00",
+      "next_test": "2027-03-15T00:00:00.000000+00:00",
+      "findings": {
+        "critical": 0,
+        "high": 2,
+        "medium": 5,
+        "low": 11
+      },
+      "recent_findings": [
+        {
+          "id": "PENTEST-2026-001",
+          "severity": "high",
+          "title": "IDOR in Credit Application API",
+          "endpoint": "https://api.example.com/v2/credit/applications/{id}",
+          "method": "GET",
+          "message": "Authenticated users can access other users' credit applications by modifying the ID parameter.",
+          "status": "retested",
+          "created_at": "2026-03-15T10:00:00.000000+00:00",
+          "retested_at": "2026-04-20T14:00:00.000000+00:00",
+          "remediation": "Implemented proper authorization checks. Retest confirmed fix."
+        },
+        {
+          "id": "PENTEST-2026-002",
+          "severity": "high",
+          "title": "Mass Assignment in User Profile Update",
+          "endpoint": "https://api.example.com/v1/users/profile",
+          "method": "PATCH",
+          "message": "User can escalate privileges by sending unexpected fields like 'role' or 'is_admin'.",
+          "status": "open",
+          "created_at": "2026-03-15T10:30:00.000000+00:00",
+          "retest_deadline": "2026-06-13T00:00:00.000000+00:00",
+          "remediation": "Implement strict whitelist of allowed fields for profile updates."
+        }
+      ],
+      "coverage": {
+        "vendor": "Third-party (CrowdStrike)",
+        "scope": "All production services",
+        "retest_window_days": 90
+      }
+    },
+    "bug_bounty": {
+      "status": "planned",
+      "program": "HackerOne",
+      "launch_phase": "Phase 3",
+      "scope_document": "docs/security/bug-bounty-scope.md",
+      "findings": [],
+      "coverage": {
+        "platform": "HackerOne",
+        "status": "not_launched",
+        "target_launch_date": "2026-Q3"
+      }
+    }
+  },
+  "compliance": {
+    "asvs": {
+      "level": "Level 2 (baseline)",
+      "level3_applied_to": ["compliance-svc", "credit-svc"],
+      "checklist_document": "docs/security
