@@ -96,22 +96,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       if (error) throw error
 
-      // Create a user profile row in the profiles table
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: data.user.id,
-            email: data.user.email,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            membership_tier: 'free',
-          }, { onConflict: 'id' })
-        // Non-fatal: log but don't throw — user account was already created
-        if (profileError) {
-          console.warn('[FundReady] Could not create user profile:', profileError.message)
-        }
-      }
+      // Database triggers create the canonical workspace, membership, business
+      // profile, and owner access in one transaction with the auth user.
+      if (!data.user) throw new Error('Account creation did not return a user.');
     } finally {
       setLoading(false)
     }
