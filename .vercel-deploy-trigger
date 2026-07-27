@@ -1,0 +1,4 @@
+Bankable OS production deployment trigger.
+Connected repository: Fundabl2025/Bankable-IQ-Fintech
+Production branch: main
+Triggered after Vercel Git integration was corrected on 2026-07-26.
