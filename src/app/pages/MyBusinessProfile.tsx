@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router';
 import { useState, useRef, useEffect } from 'react';
+import { toast } from 'sonner';
 import { 
   Building2, 
   MapPin, 
@@ -35,37 +36,31 @@ import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { ThemeButton } from '../components/ThemeButton';
-import { getBusinessProfile, updateBusinessProfile, getFicoBankableStatus } from '../utils/businessData';
+import { getFicoBankableStatus } from '../utils/businessData';
+import { useBusinessProfile } from '../hooks/useBusinessProfile';
 
 export function MyBusinessProfile() {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
-  const [businessData, setBusinessData] = useState(getBusinessProfile());
+  const {
+    profile,
+    loading,
+    saving,
+    lastSavedAt,
+    error,
+    updateProfile,
+  } = useBusinessProfile();
+  const [businessData, setBusinessData] = useState(profile);
   const ficoStatus = getFicoBankableStatus();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Editable form state
   const [formData, setFormData] = useState(businessData);
 
-  // Load data from Business Success Scan if available
   useEffect(() => {
-    const scanStep1Data = localStorage.getItem('scanStep1');
-    if (scanStep1Data) {
-      try {
-        const scanData = JSON.parse(scanStep1Data);
-        const updatedProfile = {
-          ...businessData,
-          hasEIN: scanData.hasEIN === 'Yes',
-          einNumber: scanData.einNumber || businessData.einNumber,
-        };
-        updateBusinessProfile(updatedProfile);
-        setBusinessData(updatedProfile);
-        setFormData(updatedProfile);
-      } catch (error) {
-        console.error('Error parsing scan data:', error);
-      }
-    }
-  }, []); // Run once on mount
+    setBusinessData(profile);
+    if (!isEditing) setFormData(profile);
+  }, [isEditing, profile]);
 
   const handleEdit = () => {
     setIsEditing(true);
@@ -77,10 +72,20 @@ export function MyBusinessProfile() {
     setFormData(businessData);
   };
 
-  const handleSave = () => {
-    updateBusinessProfile(formData);
-    setBusinessData(formData);
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+      const saved = await updateProfile(formData, 'manual');
+      setBusinessData(saved);
+      setFormData(saved);
+      setIsEditing(false);
+      toast.success('Business profile saved', {
+        description: 'Your changes are now available across Bankable OS.',
+      });
+    } catch (saveError) {
+      toast.error('We could not save your changes', {
+        description: saveError instanceof Error ? saveError.message : 'Please try again.',
+      });
+    }
   };
 
   const handleInputChange = (field: string, value: any) => {
@@ -152,6 +157,25 @@ export function MyBusinessProfile() {
   };
 
   const completionPercentage = calculateCompletion();
+  const bureauScores = [
+    businessData.equifaxScore,
+    businessData.transunionScore,
+    businessData.experianScore,
+  ].filter((score): score is number => typeof score === 'number' && score > 0);
+  const averageBureauScore = bureauScores.length
+    ? Math.round(bureauScores.reduce((total, score) => total + score, 0) / bureauScores.length)
+    : 0;
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          <p className="text-sm font-medium text-slate-600">Loading your business record…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 min-h-screen bg-slate-50 overflow-auto">
@@ -167,6 +191,16 @@ export function MyBusinessProfile() {
               <p className="text-sm sm:text-base text-gray-600">
                 Complete overview of your business information and verification status
               </p>
+              {lastSavedAt && (
+                <p className="mt-1 text-xs font-medium text-emerald-700">
+                  Saved {new Date(lastSavedAt).toLocaleString()}
+                </p>
+              )}
+              {error && (
+                <p className="mt-1 text-xs font-medium text-red-600">
+                  Sync issue: {error.message}
+                </p>
+              )}
             </div>
             
             {!isEditing ? (
@@ -183,6 +217,7 @@ export function MyBusinessProfile() {
                 <Button
                   variant="outline"
                   onClick={handleCancel}
+                  disabled={saving}
                   className="w-full sm:w-auto min-h-[44px]"
                 >
                   <X className="w-4 h-4 mr-2" />
@@ -191,10 +226,11 @@ export function MyBusinessProfile() {
                 <ThemeButton
                   theme="green"
                   onClick={handleSave}
+                  disabled={saving}
                   className="w-full sm:w-auto min-h-[44px]"
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  Save Changes
+                  {saving ? 'Saving…' : 'Save Changes'}
                 </ThemeButton>
               </div>
             )}
@@ -215,7 +251,7 @@ export function MyBusinessProfile() {
                   </div>
                   <div className="text-2xl sm:text-3xl font-bold">{ficoStatus.currentScore}/160</div>
                   <p className="text-xs sm:text-sm opacity-90 mt-1">
-                    {ficoStatus.remainingPoints} points to bankable
+                    {ficoStatus.pointsNeeded} points to bankable
                   </p>
                 </div>
               </div>
@@ -752,13 +788,7 @@ export function MyBusinessProfile() {
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">Average Score</span>
                         <span className="text-2xl font-bold text-gray-900">
-                          {Math.round(
-                            [businessData.equifaxScore, businessData.transunionScore, businessData.experianScore]
-                              .filter(score => score && score > 0)
-                              .reduce((acc, score) => acc + (score || 0), 0) /
-                            [businessData.equifaxScore, businessData.transunionScore, businessData.experianScore]
-                              .filter(score => score && score > 0).length
-                          )}
+                          {averageBureauScore}
                         </span>
                       </div>
                     </div>
