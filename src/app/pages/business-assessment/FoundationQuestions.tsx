@@ -2451,7 +2451,7 @@ function QuestionF11_Capital({ data, updateData, onNext, onBack, currentQuestion
 
       {/* Loan Amount */}
       <div style={{ marginBottom: '32px' }}>
-        <label style={{ display: 'block', fontFamily: 'var(--font-body)', fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '11px' }}>
+        <label style={{ display: 'block', fontFamily: 'var(--font-body)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '11px' }}>
           Capital Amount Needed
         </label>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>

@@ -10,6 +10,9 @@ Order matters. Run in numerical order.
 | `012_v1.8_credit_schemas.sql` | The 5 credit schemas (Blueprint v1.8 §34, rows 26-30) |
 | `013_v1.8_bai_schemas.sql` | The 5 BAI schemas, NEW v1.8 (rows 31-35) |
 | `014_v1.8_multi_tenant_rls.sql` | Multi-tenant RLS policies on every new table |
+| `015_enterprise_identity_and_access.sql` | Enterprise roles, memberships, invitations, client assignments, and Supabase-native authorization |
+| `016_identity_bootstrap_and_canonical_client.sql` | New-user workspace bootstrap and automatic canonical business ownership mapping |
+| `017_security_hardening.sql` | Removes anonymous financial-table access and locks privileged trigger functions |
 | `verify-supabase-schema.sql` | Read-only sanity check, runs anytime |
 
 After v1.8 is fully applied, the schema count reaches 35 per the Blueprint §34 catalog.

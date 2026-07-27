@@ -7,6 +7,7 @@
 
 import { Navigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
+import { useAccess } from '../contexts/AccessContext';
 import { Loader2 } from 'lucide-react';
 
 interface AdminRouteProps {
@@ -14,7 +15,9 @@ interface AdminRouteProps {
 }
 
 export function AdminRoute({ children }: AdminRouteProps) {
-  const { user, loading, isConfigured } = useAuth();
+  const { user, loading: authLoading, isConfigured } = useAuth();
+  const { loading: accessLoading, canAdministerTenant } = useAccess();
+  const loading = authLoading || accessLoading;
 
   if (loading) {
     return (
@@ -52,9 +55,7 @@ export function AdminRoute({ children }: AdminRouteProps) {
     return <Navigate to="/app/dashboard" replace />;
   }
 
-  const isAdmin = user?.app_metadata?.role === 'admin';
-
-  if (!isAdmin) {
+  if (!canAdministerTenant) {
     return <Navigate to="/app/dashboard" replace />;
   }
 
