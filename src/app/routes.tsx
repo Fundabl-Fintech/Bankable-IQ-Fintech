@@ -14,6 +14,7 @@ const FoundationFirstDashboard = lazy(() => import('./pages/FoundationFirst/Dash
 const IntegrateReports = lazy(() => import('./pages/IntegrateReports').then(m => ({ default: m.IntegrateReports })));
 const StatusReports = lazy(() => import('./pages/StatusReports').then(m => ({ default: m.StatusReports })));
 const AICoach = lazy(() => import('./pages/AICoach').then(m => ({ default: m.AICoach })));
+const GHLSnapshot = lazy(() => import('./pages/GHLSnapshot').then(m => ({ default: m.GHLSnapshot })));
 const BankableStatus = lazy(() => import('./pages/StatusReports/BankableStatus').then(m => ({ default: m.BankableStatus })));
 const BusinessFICO = lazy(() => import('./pages/StatusReports/BusinessFICO').then(m => ({ default: m.BusinessFICO })));
 const EstimatedFunding = lazy(() => import('./pages/StatusReports/EstimatedFunding').then(m => ({ default: m.EstimatedFunding })));
@@ -135,6 +136,10 @@ export const router = createBrowserRouter([
       {
         path: 'ai-coach',
         element: <LazyComponent Component={AICoach} />,
+      },
+      {
+        path: 'ghl-snapshot',
+        element: <LazyComponent Component={GHLSnapshot} />,
       },
       {
         path: 'status-reports',
