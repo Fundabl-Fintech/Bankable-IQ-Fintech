@@ -31,6 +31,7 @@ import {
   Compass,
   User,
   CreditCard,
+  Boxes,
 } from 'lucide-react';
 import { getPreQualifiedPrograms } from '../utils/fundingEligibility';
 import { computeScore } from '../pages/business-assessment/engine';
@@ -45,6 +46,7 @@ const PRIMARY_NAV = [
   { path: '/app/access-funding',  label: 'Access Funding',        icon: DollarSign, showFunding: true },
   { path: '/app/my-progress',     label: 'My Progress',           icon: TrendingUp },
   { path: '/app/ai-coach',        label: 'Bankable AI Coach',      icon: Brain, isCoach: true },
+  { path: '/app/ghl-snapshot',    label: 'AI Snapshot Builder',     icon: Boxes },
   { path: '/app/finances',        label: 'Finances',              icon: Wallet },
 ];
 
